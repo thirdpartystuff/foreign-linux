@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.31)
 project(flinux C ASM_MASM)
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SAFESEH:NO")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SAFESEH:NO /DYNAMICBASE:NO")
 
 add_compile_options(
      "$<$<CONFIG:Debug>:/MTd>"
