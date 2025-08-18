@@ -305,6 +305,7 @@ int winfs_write_special_file(struct file *f, const char *header, int headerlen, 
 /* Test if a handle is a symlink, does not read the target
  * The current file pointer will be changed
  */
+/*
 static int winfs_is_symlink_unsafe(HANDLE hFile)
 {
     metadata md;
@@ -328,6 +329,7 @@ static int winfs_is_symlink_unsafe(HANDLE hFile)
 		return 0;
 	return 1;
 }
+*/
 
 /* Return file type.
  * File pointer is changed after the operation.
@@ -398,9 +400,14 @@ static int winfs_read_symlink_unsafe(HANDLE hFile, char *target, int buflen)
     }
 
 	if (!ReadFile(hFile, header, WINFS_SYMLINK_HEADER_LEN, &num_read, &overlapped) || num_read < WINFS_SYMLINK_HEADER_LEN)
+		goto rewind;
+	if (memcmp(header, WINFS_SYMLINK_HEADER, WINFS_SYMLINK_HEADER_LEN)) {
+		LARGE_INTEGER dist;
+	rewind:
+		dist.QuadPart = 0;
+		SetFilePointerEx(hFile, dist, &dist, FILE_BEGIN);
 		return 0;
-	if (memcmp(header, WINFS_SYMLINK_HEADER, WINFS_SYMLINK_HEADER_LEN))
-		return 0;
+	}
 	if (target == NULL || buflen == 0)
 	{
 		LARGE_INTEGER size;
