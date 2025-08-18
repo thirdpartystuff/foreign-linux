@@ -32,6 +32,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <limits.h>
+#include <stdio.h>
 #include <malloc.h>
 
 struct winfs_file
@@ -43,6 +44,67 @@ struct winfs_file
 	int mp_key; /* Mount point key */
 	char drive_letter; /* DOS drive letter where this file resides in */
 };
+
+enum {
+    MD_TYPE_FIFO      = 0x1000,
+    MD_TYPE_CHAR_DEV  = 0x2000,
+    MD_TYPE_DIRECTORY = 0x4000,
+    MD_TYPE_BLOCK_DEV = 0x6000,
+    MD_TYPE_FILE      = 0x8000,
+    MD_TYPE_SYMLINK   = 0xA000,
+    MD_TYPE_SOCKET    = 0xC000
+};
+
+typedef struct metadata {
+    unsigned type;
+    unsigned perm;
+    unsigned uid, gid;
+} metadata;
+
+static metadata* read_meta_file(const char* file, metadata* out)
+{
+    char buf[1024];
+    sprintf(buf, "%s[meta]", file);
+
+    FILE* f = fopen(buf, "rb");
+    if (f) {
+        unsigned p, u, g;
+        char type;
+        if (fscanf(f, "%c %o %u:%u", &type, &p, &u, &g) != 4) {
+            log_error("invalid meta file: %s", buf);
+            return NULL;
+        }
+        fclose(f);
+        switch (type) {
+            case 'D': out->type = MD_TYPE_DIRECTORY; break;
+            case 'Q': out->type = MD_TYPE_FIFO; break;
+            case 'C': out->type = MD_TYPE_CHAR_DEV; break;
+            case 'B': out->type = MD_TYPE_BLOCK_DEV; break;
+            case 'F': out->type = MD_TYPE_FILE; break;
+            case 'L': out->type = MD_TYPE_SYMLINK; break;
+            case 'S': out->type = MD_TYPE_SOCKET; break;
+            default: log_error("invalid meta file: %s", buf); return NULL;
+        }
+        if (p > 0xfff || u > 0xffff || g > 0xffff) {
+            log_error("invalid meta file: %s", buf);
+            return NULL;
+        }
+        out->perm = p;
+        out->uid = u;
+        out->gid = g;
+        return out;
+    }
+    return NULL;
+}
+
+static metadata* read_meta_file_h(HANDLE hFile, metadata* out)
+{
+    char buf[1024] = {0};
+    DWORD ret = GetFinalPathNameByHandleA(hFile, buf, sizeof(buf), FILE_NAME_OPENED);
+    if (!ret || !buf[0])
+        return NULL;
+    return read_meta_file(buf, out);
+}
 
 /* Convert an utf-8 file name to NT file name, return converted name length in characters, no NULL terminator is appended */
 static int filename_to_nt_pathname(struct mount_point *mp, const char *filename, WCHAR *buf, int buf_size)
@@ -245,6 +307,10 @@ int winfs_write_special_file(struct file *f, const char *header, int headerlen, 
  */
 static int winfs_is_symlink_unsafe(HANDLE hFile)
 {
+    metadata md;
+    if (read_meta_file_h(hFile, &md) && md.type == MD_TYPE_SYMLINK)
+        return 1;
+
 	char header[WINFS_SYMLINK_HEADER_LEN];
 	DWORD num_read;
 	OVERLAPPED overlapped;
@@ -268,9 +334,14 @@ static int winfs_is_symlink_unsafe(HANDLE hFile)
  * Return 0 if anything fails
  */
 #define SPECIAL_FILE_SYMLINK		1
+#define SPECIAL_FILE_SYMLINK_META 1000
 #define SPECIAL_FILE_SOCKET			2
 static int winfs_get_special_file_type(HANDLE hFile)
 {
+    metadata md;
+    if (read_meta_file_h(hFile, &md) && md.type == MD_TYPE_SYMLINK)
+        return SPECIAL_FILE_SYMLINK_META;
+
 	char header[WINFS_HEADER_MAX_LEN];
 	memset(header, 0, sizeof(header));
 	DWORD num_read;
@@ -308,6 +379,24 @@ static int winfs_read_symlink_unsafe(HANDLE hFile, char *target, int buflen)
 	overlapped.Offset = 0;
 	overlapped.OffsetHigh = 0;
 	overlapped.hEvent = 0;
+
+    metadata md;
+    if (read_meta_file_h(hFile, &md) && md.type == MD_TYPE_SYMLINK) {
+        if (target == NULL || buflen == 0) {
+            LARGE_INTEGER size;
+            if (!GetFileSizeEx(hFile, &size) || size.QuadPart >= PATH_MAX)
+                return 0;
+            return (int)size.QuadPart;
+        }
+        else
+        {
+            if (!ReadFile(hFile, target, buflen, &num_read, &overlapped))
+                return 0;
+            target[num_read] = 0;
+            return num_read;
+        }
+    }
+
 	if (!ReadFile(hFile, header, WINFS_SYMLINK_HEADER_LEN, &num_read, &overlapped) || num_read < WINFS_SYMLINK_HEADER_LEN)
 		return 0;
 	if (memcmp(header, WINFS_SYMLINK_HEADER, WINFS_SYMLINK_HEADER_LEN))
@@ -671,6 +760,11 @@ static int winfs_stat(struct file *f, struct newstat *buf)
 			int type = winfs_get_special_file_type(winfile->handle);
 			if (type > 0)
 			{
+				if (type == SPECIAL_FILE_SYMLINK_META)
+				{
+					buf->st_mode |= S_IFLNK;
+				}
+				else
 				if (type == SPECIAL_FILE_SYMLINK)
 				{
 					buf->st_mode |= S_IFLNK;
@@ -794,6 +888,9 @@ static int winfs_getdents(struct file *f, void *dirent, size_t count, getdents_c
 				if (NT_SUCCESS(status))
 				{
 					int type = winfs_get_special_file_type(handle);
+					if (type == SPECIAL_FILE_SYMLINK_META)
+						type = DT_LNK;
+					else
 					if (type == SPECIAL_FILE_SYMLINK)
 						type = DT_LNK;
 					else if (type == SPECIAL_FILE_SOCKET)
@@ -1151,7 +1248,7 @@ static int open_file(HANDLE *hFile, struct mount_point *mp, const char *pathname
 	}
 	/* Test if the file is a symlink */
 	int is_symlink = 0;
-	if (!(attribute_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) && (attribute_info.FileAttributes & FILE_ATTRIBUTE_SYSTEM))
+	if (!(attribute_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY))// && (attribute_info.FileAttributes & FILE_ATTRIBUTE_SYSTEM))
 	{
 		/* The file has system flag set. A potential symbolic link. */
 		if (!(desired_access & GENERIC_READ))
