@@ -37,6 +37,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+#if 0
 #pragma comment(linker,"/entry:main")
 #pragma comment(lib,"delayimp")
  /* VS 2015 does not pull this in when manually specifying entrypoint, don't know why. */
@@ -44,6 +45,7 @@
 #pragma comment(lib,"libucrtd")
 #else
 #pragma comment(lib,"libucrt")
+#endif
 #endif
 
 static void print_usage()
