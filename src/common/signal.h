@@ -5,7 +5,7 @@
 #define	_NSIG		64
 #define _NSIG_WORDS	(_NSIG / sizeof(unsigned long))
 
-typedef uintptr_t old_sigset_t;
+typedef uint32_t old_sigset_t;
 typedef uint64_t sigset_t;
 
 #define sigaddset(set, sig)		*(set) |= (1ULL << (sig))
@@ -107,7 +107,7 @@ struct sigaction
 	};
 	sigset_t sa_mask;
 	int sa_flags;
-	void (*sa_restorer)();
+	void (*sa_restorer)(void);
 };
 
 #define SIGHUP			1
@@ -181,3 +181,10 @@ typedef struct sigaltstack {
 	int ss_flags;
 	size_t ss_size;
 } stack_t;
+
+struct old_sigaction {
+	__sighandler_t sa_handler;
+	old_sigset_t sa_mask;
+	uint32_t sa_flags;
+	void (*sa_restorer)(void);
+};

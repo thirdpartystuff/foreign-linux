@@ -636,6 +636,32 @@ DEFINE_SYSCALL(personality, unsigned long, persona)
 	return 0;
 }
 
+DEFINE_SYSCALL(sigaction, int, signum, const struct old_sigaction *, act, struct old_sigaction *, oldact)
+{
+	log_info("sigaction(%d, %p, %p)", signum, act, oldact);
+	if (signum < 0 || signum >= _NSIG || signum == SIGKILL || signum == SIGSTOP)
+		return -L_EINVAL;
+	if (act && !mm_check_read(act, sizeof(*act)))
+		return -L_EFAULT;
+	if (oldact && !mm_check_write(oldact, sizeof(*oldact)))
+		return -L_EFAULT;
+	EnterCriticalSection(&signal->mutex);
+	if (oldact) {
+		oldact->sa_handler = signal->actions[signum].sa_handler;
+		oldact->sa_mask = signal->actions[signum].sa_mask;
+		oldact->sa_flags = signal->actions[signum].sa_flags;
+		oldact->sa_restorer = signal->actions[signum].sa_restorer;
+	}
+	if (act) {
+		signal->actions[signum].sa_handler = act->sa_handler;
+		signal->actions[signum].sa_mask = act->sa_mask;
+		signal->actions[signum].sa_flags = act->sa_flags;
+		signal->actions[signum].sa_restorer = act->sa_restorer;
+	}
+	LeaveCriticalSection(&signal->mutex);
+	return 0;
+}
+
 DEFINE_SYSCALL(rt_sigaction, int, signum, const struct sigaction *, act, struct sigaction *, oldact, size_t, sigsetsize)
 {
 	log_info("rt_sigaction(%d, %p, %p)", signum, act, oldact);
