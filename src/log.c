@@ -19,7 +19,9 @@
 
 #include <common/types.h>
 #include <log.h>
+#include <str.h>
 #include <vsprintf.h>
+#include <syscall/process.h>
 #include <win7compat.h>
 
 #define WIN32_LEAN_AND_MEAN

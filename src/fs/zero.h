@@ -21,4 +21,4 @@
 
 #include <fs/virtual.h>
 
-struct virtualfs_char_desc zero_desc;
+extern struct virtualfs_char_desc zero_desc;

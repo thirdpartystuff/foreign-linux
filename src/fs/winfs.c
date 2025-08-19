@@ -122,7 +122,7 @@ static int filename_to_nt_pathname(struct mount_point *mp, const char *filename,
 	*buf++ = L'\\';
 	out_size++;
 	buf_size--;
-	int fl = utf8_to_utf16_filename(filename, strlen(filename), buf, buf_size);
+	int fl = utf8_to_utf16_filename(filename, strlen(filename), (uint16_t*)buf, buf_size);
 	if (fl < 0)
 		return 0;
 	return out_size + fl;
@@ -480,7 +480,7 @@ static int winfs_getpath(struct file *f, char *buf)
 		buf += 2;
 		len = 2;
 	}
-	int r = utf16_to_utf8_filename(relpath, wcslen(relpath), buf, PATH_MAX); /* TODO: length */
+	int r = utf16_to_utf8_filename((const uint16_t*)relpath, wcslen(relpath), buf, PATH_MAX); /* TODO: length */
 	if (r < 0)
 	{
 		log_error("utf16_to_utf8_filename() failed.");
@@ -497,12 +497,12 @@ static int winfs_getpath(struct file *f, char *buf)
 	return len;
 }
 
-static size_t winfs_read(struct file *f, void *buf, size_t count)
+static ssize_t winfs_read(struct file *f, void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct winfs_file *winfile = (struct winfs_file *) f;
 	WaitForSingleObject(winfile->fp_mutex, INFINITE);
-	size_t num_read = 0;
+	ssize_t num_read = 0;
 	while (count > 0)
 	{
 		DWORD count_dword = (DWORD)min(count, (size_t)UINT_MAX);
@@ -525,12 +525,12 @@ static size_t winfs_read(struct file *f, void *buf, size_t count)
 	return num_read;
 }
 
-static size_t winfs_write(struct file *f, const void *buf, size_t count)
+static ssize_t winfs_write(struct file *f, const void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct winfs_file *winfile = (struct winfs_file *) f;
 	WaitForSingleObject(winfile->fp_mutex, INFINITE);
-	size_t num_written = 0;
+	ssize_t num_written = 0;
 	OVERLAPPED overlapped;
 	overlapped.Internal = 0;
 	overlapped.InternalHigh = 0;
@@ -574,7 +574,7 @@ static size_t winfs_write(struct file *f, const void *buf, size_t count)
  * other problems such as file content desync, and file permission problems. Due to
  * the additional complications this method is not used here.
  */
-static size_t winfs_pread(struct file *f, void *buf, size_t count, loff_t offset)
+static ssize_t winfs_pread(struct file *f, void *buf, size_t count, loff_t offset)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct winfs_file *winfile = (struct winfs_file *) f;
@@ -583,7 +583,7 @@ static size_t winfs_pread(struct file *f, void *buf, size_t count, loff_t offset
 	LARGE_INTEGER distanceToMove, currentFilePointer;
 	distanceToMove.QuadPart = 0;
 	SetFilePointerEx(winfile->handle, distanceToMove, &currentFilePointer, FILE_CURRENT);
-	size_t num_read = 0;
+	ssize_t num_read = 0;
 	while (count > 0)
 	{
 		OVERLAPPED overlapped;
@@ -615,7 +615,7 @@ static size_t winfs_pread(struct file *f, void *buf, size_t count, loff_t offset
 	return num_read;
 }
 
-static size_t winfs_pwrite(struct file *f, const void *buf, size_t count, loff_t offset)
+static ssize_t winfs_pwrite(struct file *f, const void *buf, size_t count, loff_t offset)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct winfs_file *winfile = (struct winfs_file *) f;
@@ -624,7 +624,7 @@ static size_t winfs_pwrite(struct file *f, const void *buf, size_t count, loff_t
 	LARGE_INTEGER distanceToMove, currentFilePointer;
 	distanceToMove.QuadPart = 0;
 	SetFilePointerEx(winfile->handle, distanceToMove, &currentFilePointer, FILE_CURRENT);
-	size_t num_written = 0;
+	ssize_t num_written = 0;
 	while (count > 0)
 	{
 		OVERLAPPED overlapped;
@@ -652,7 +652,7 @@ static size_t winfs_pwrite(struct file *f, const void *buf, size_t count, loff_t
 	return num_written;
 }
 
-static size_t winfs_readlink(struct file *f, char *target, size_t buflen)
+static ssize_t winfs_readlink(struct file *f, char *target, size_t buflen)
 {
 	/* This file is a symlink, so read(), write() should not be called on this file
 	 * Thus we don't need to lock the file pointer
@@ -660,7 +660,7 @@ static size_t winfs_readlink(struct file *f, char *target, size_t buflen)
 	/* TODO: Store the file type in winfile structure so we can be sure this file is really a symlink */
 	AcquireSRWLockShared(&f->rw_lock);
 	struct winfs_file *winfile = (struct winfs_file *) f;
-	int r = winfs_read_symlink_unsafe(winfile->handle, target, (int)buflen);
+	ssize_t r = winfs_read_symlink_unsafe(winfile->handle, target, (int)buflen);
 	ReleaseSRWLockShared(&f->rw_lock);
 	if (r == 0)
 		return -L_EINVAL;
@@ -1162,7 +1162,7 @@ static int winfs_mkdir(struct mount_point *mp, const char *pathname, int mode)
 {
 	WCHAR wpathname[PATH_MAX];
 
-	if (utf8_to_utf16_filename(pathname, strlen(pathname) + 1, wpathname, PATH_MAX) <= 0)
+	if (utf8_to_utf16_filename(pathname, strlen(pathname) + 1, (uint16_t*)wpathname, PATH_MAX) <= 0)
 		return -L_ENOENT;
 	if (!CreateDirectoryW(wpathname, NULL))
 	{
@@ -1181,7 +1181,7 @@ static int winfs_mkdir(struct mount_point *mp, const char *pathname, int mode)
 static int winfs_rmdir(struct mount_point *mp, const char *pathname)
 {
 	WCHAR wpathname[PATH_MAX];
-	if (utf8_to_utf16_filename(pathname, strlen(pathname) + 1, wpathname, PATH_MAX) <= 0)
+	if (utf8_to_utf16_filename(pathname, strlen(pathname) + 1, (uint16_t*)wpathname, PATH_MAX) <= 0)
 		return -L_ENOENT;
 	if (!RemoveDirectoryW(wpathname))
 	{

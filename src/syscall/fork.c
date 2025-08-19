@@ -27,6 +27,9 @@
 #include <syscall/process_info.h>
 #include <syscall/syscall.h>
 #include <syscall/tls.h>
+#include <syscall/sig.h>
+#include <syscall/vfs.h>
+#include <syscall/exec.h>
 #include <flags.h>
 #include <heap.h>
 #include <log.h>
@@ -175,7 +178,7 @@ static pid_t fork_process(struct syscall_context *context, unsigned long flags, 
 	PROCESS_INFORMATION info;
 	STARTUPINFOW si = { 0 };
 	si.cb = sizeof(si);
-	if (!CreateProcessW(filename, (logger_attached ? L"/?/fork+trace" : L"/?/fork"), NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &si, &info))
+	if (!CreateProcessW(filename, (LPWSTR)(logger_attached ? L"/?/fork+trace" : L"/?/fork"), NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &si, &info))
 	{
 		log_warning("fork(): CreateProcessW() failed.");
 		return -1;
@@ -254,7 +257,7 @@ static DWORD WINAPI fork_thread_callback(void *data)
 	if (info->flags & CLONE_SETTLS)
 		tls_set_thread_area(&info->tls_data);
 	if (info->flags & CLONE_CHILD_CLEARTID)
-		current_thread->clear_tid = info->ctid;
+		current_thread->clear_tid = (pid_t*)info->ctid;
 	else
 		current_thread->clear_tid = NULL;
 	dbt_update_tls(info->gs);
@@ -267,7 +270,7 @@ static DWORD WINAPI fork_thread_callback(void *data)
 
 static pid_t fork_thread(struct syscall_context *context, void *child_stack, unsigned long flags, void *ptid, void *ctid)
 {
-	struct fork_info *info = VirtualAlloc(NULL, sizeof(struct fork_info), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	struct fork_info *info = (struct fork_info*)VirtualAlloc(NULL, sizeof(struct fork_info), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	DWORD win_tid;
 	HANDLE handle = CreateThread(NULL, 0, fork_thread_callback, info, CREATE_SUSPENDED, &win_tid);
 	pid_t pid = process_create_thread(win_tid);
@@ -288,12 +291,14 @@ static pid_t fork_thread(struct syscall_context *context, void *child_stack, uns
 	return pid;
 }
 
+EXTERN_C int sys_fork_imp(struct syscall_context *context);
 int sys_fork_imp(struct syscall_context *context)
 {
 	log_info("fork()");
 	return fork_process(context, 0, NULL, NULL);
 }
 
+EXTERN_C int sys_vfork_imp(struct syscall_context *context);
 int sys_vfork_imp(struct syscall_context *context)
 {
 	log_info("vfork()");
@@ -301,8 +306,10 @@ int sys_vfork_imp(struct syscall_context *context)
 }
 
 #ifdef _WIN64
+EXTERN_C int sys_clone_imp(struct syscall_context *context, unsigned long flags, void *child_stack, void *ptid, void *ctid);
 int sys_clone_imp(struct syscall_context *context, unsigned long flags, void *child_stack, void *ptid, void *ctid)
 #else
+EXTERN_C int sys_clone_imp(struct syscall_context *context, unsigned long flags, void *child_stack, void *ptid, int tls, void *ctid);
 int sys_clone_imp(struct syscall_context *context, unsigned long flags, void *child_stack, void *ptid, int tls, void *ctid)
 #endif
 {

@@ -34,6 +34,7 @@
 #include <syscall/sig.h>
 #include <syscall/syscall.h>
 #include <syscall/vfs.h>
+#include <syscall/process.h>
 #include <datetime.h>
 #include <log.h>
 #include <shared.h>
@@ -84,7 +85,7 @@ struct vfs_data
 struct vfs_shared_data
 {
 	volatile int mp_first;
-	volatile int max_key;
+	volatile LONG max_key;
 	int root_id; /* ID of root mount point */
 	struct mount_point mounts[MAX_MOUNT_POINTS]; /* Slot 0 is unused */
 };
@@ -270,7 +271,7 @@ static void vfs_shared_init()
 	for (char i = 'a'; i <= 'z'; i++)
 	{
 		char mountpoint[3] = { '/', i, 0 };
-		WCHAR winpath[8] = { L'\\', L'?', L'?', L'\\', i - 'a' + 'A', L':', L'\\', 0 };
+		WCHAR winpath[8] = { L'\\', L'?', L'?', L'\\', (WCHAR)(i - 'a' + 'A'), L':', L'\\', 0 };
 		vfs_mount_unsafe(FS_WINFS, true, winpath, mountpoint);
 	}
 	vfs_mount_unsafe(FS_DEVFS, true, NULL, "/dev");
@@ -282,7 +283,7 @@ static void vfs_shared_init()
 void vfs_init()
 {
 	log_info("vfs subsystem initializing...");
-	vfs = mm_static_alloc(sizeof(struct vfs_data));
+	vfs = (struct vfs_data*)mm_static_alloc(sizeof(struct vfs_data));
 	InitializeSRWLock(&vfs->rw_lock);
 	/* Create file systems */
 	vfs->fs[FS_WINFS] = winfs_alloc();
@@ -290,7 +291,7 @@ void vfs_init()
 	vfs->fs[FS_PROCFS] = procfs_alloc();
 	vfs->fs[FS_SYSFS] = sysfs_alloc();
 	/* Create vfs shared area */
-	vfs_shared = shared_alloc(sizeof(struct vfs_shared_data));
+	vfs_shared = (struct vfs_shared_data*)shared_alloc(sizeof(struct vfs_shared_data));
 	/* Create vfs mutexex */
 	UNICODE_STRING name;
 	RtlInitUnicodeString(&name, L"vfs_mount_write_mutex");
@@ -389,8 +390,8 @@ int vfs_fork(HANDLE process, DWORD process_id)
 
 void vfs_afterfork_child()
 {
-	vfs = mm_static_alloc(sizeof(struct vfs_data));
-	vfs_shared = shared_alloc(sizeof(struct vfs_shared_data));
+	vfs = (struct vfs_data*)mm_static_alloc(sizeof(struct vfs_data));
+	vfs_shared = (struct vfs_shared_data*)shared_alloc(sizeof(struct vfs_shared_data));
 	InitializeSRWLock(&vfs->rw_lock);
 	console_afterfork();
 
@@ -458,7 +459,7 @@ int vfs_store_file(struct file *f, int cloexec)
 	return r;
 }
 
-DEFINE_SYSCALL(pipe2, int *, pipefd, int, flags)
+DEFINE_SYSCALL2(pipe2, int *, pipefd, int, flags)
 {
 	/*
 	Supported flags:
@@ -506,12 +507,12 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(pipe, int *, pipefd)
+DEFINE_SYSCALL1(pipe, int *, pipefd)
 {
 	return sys_pipe2(pipefd, 0);
 }
 
-DEFINE_SYSCALL(eventfd2, unsigned int, count, int, flags)
+DEFINE_SYSCALL2(eventfd2, unsigned int, count, int, flags)
 {
 	log_info("eventfd2(%u, %d)", count, flags);
 
@@ -573,25 +574,25 @@ out:
 	return newfd;
 }
 
-DEFINE_SYSCALL(dup, int, fd)
+DEFINE_SYSCALL1(dup, int, fd)
 {
 	log_info("dup(%d)", fd);
 	return vfs_dup(fd, -1, 0);
 }
 
-DEFINE_SYSCALL(dup2, int, fd, int, newfd)
+DEFINE_SYSCALL2(dup2, int, fd, int, newfd)
 {
 	log_info("dup2(%d, %d)", fd, newfd);
 	return vfs_dup(fd, newfd, 0);
 }
 
-DEFINE_SYSCALL(dup3, int, fd, int, newfd, int, flags)
+DEFINE_SYSCALL3(dup3, int, fd, int, newfd, int, flags)
 {
 	log_info("dup3(%d, %d, 0x%x)", fd, newfd, flags);
 	return vfs_dup(fd, newfd, flags);
 }
 
-DEFINE_SYSCALL(read, int, fd, char *, buf, size_t, count)
+DEFINE_SYSCALL3(read, int, fd, char *, buf, size_t, count)
 {
 	log_info("read(%d, %p, %p)", fd, buf, count);
 	if (!mm_check_write(buf, count))
@@ -612,7 +613,7 @@ DEFINE_SYSCALL(read, int, fd, char *, buf, size_t, count)
 	return r;
 }
 
-DEFINE_SYSCALL(write, int, fd, const char *, buf, size_t, count)
+DEFINE_SYSCALL3(write, int, fd, const char *, buf, size_t, count)
 {
 	log_info("write(%d, %p, %p)", fd, buf, count);
 	if (!mm_check_read(buf, count))
@@ -633,7 +634,7 @@ DEFINE_SYSCALL(write, int, fd, const char *, buf, size_t, count)
 	return r;
 }
 
-DEFINE_SYSCALL(pread64, int, fd, char *, buf, size_t, count, loff_t, offset)
+DEFINE_SYSCALL4(pread64, int, fd, char *, buf, size_t, count, loff_t, offset)
 {
 	log_info("pread64(%d, %p, %p, %lld)", fd, buf, count, offset);
 	if (!mm_check_write(buf, count))
@@ -654,7 +655,7 @@ DEFINE_SYSCALL(pread64, int, fd, char *, buf, size_t, count, loff_t, offset)
 	return r;
 }
 
-DEFINE_SYSCALL(pwrite64, int, fd, const char *, buf, size_t, count, loff_t, offset)
+DEFINE_SYSCALL4(pwrite64, int, fd, const char *, buf, size_t, count, loff_t, offset)
 {
 	log_info("pwrite64(%d, %p, %p, %lld)", fd, buf, count, offset);
 	if (!mm_check_read(buf, count))
@@ -674,7 +675,7 @@ DEFINE_SYSCALL(pwrite64, int, fd, const char *, buf, size_t, count, loff_t, offs
 	return r;
 }
 
-DEFINE_SYSCALL(readv, int, fd, const struct iovec *, iov, int, iovcnt)
+DEFINE_SYSCALL3(readv, int, fd, const struct iovec *, iov, int, iovcnt)
 {
 	log_info("readv(%d, 0x%p, %d)", fd, iov, iovcnt);
 	for (int i = 0; i < iovcnt; i++)
@@ -710,7 +711,7 @@ DEFINE_SYSCALL(readv, int, fd, const struct iovec *, iov, int, iovcnt)
 	return r;
 }
 
-DEFINE_SYSCALL(writev, int, fd, const struct iovec *, iov, int, iovcnt)
+DEFINE_SYSCALL3(writev, int, fd, const struct iovec *, iov, int, iovcnt)
 {
 	log_info("writev(%d, 0x%p, %d)", fd, iov, iovcnt);
 	for (int i = 0; i < iovcnt; i++)
@@ -746,7 +747,7 @@ DEFINE_SYSCALL(writev, int, fd, const struct iovec *, iov, int, iovcnt)
 	return r;
 }
 
-DEFINE_SYSCALL(preadv, int, fd, const struct iovec *, iov, int, iovcnt, off_t, offset)
+DEFINE_SYSCALL4(preadv, int, fd, const struct iovec *, iov, int, iovcnt, off_t, offset)
 {
 	log_info("preadv(%d, 0x%p, %d, 0x%x)", fd, iov, iovcnt, offset);
 	for (int i = 0; i < iovcnt; i++)
@@ -783,7 +784,7 @@ DEFINE_SYSCALL(preadv, int, fd, const struct iovec *, iov, int, iovcnt, off_t, o
 	return r;
 }
 
-DEFINE_SYSCALL(pwritev, int, fd, const struct iovec *, iov, int, iovcnt, off_t, offset)
+DEFINE_SYSCALL4(pwritev, int, fd, const struct iovec *, iov, int, iovcnt, off_t, offset)
 {
 	log_info("pwritev(%d, 0x%p, %d, 0x%x)", fd, iov, iovcnt, offset);
 	for (int i = 0; i < iovcnt; i++)
@@ -820,7 +821,7 @@ DEFINE_SYSCALL(pwritev, int, fd, const struct iovec *, iov, int, iovcnt, off_t, 
 	return r;
 }
 
-DEFINE_SYSCALL(truncate, const char *, path, off_t, length)
+DEFINE_SYSCALL2(truncate, const char *, path, off_t, length)
 {
 	log_info("truncate(\"%s\", %p)", path, length);
 	AcquireSRWLockShared(&vfs->rw_lock);
@@ -841,7 +842,7 @@ DEFINE_SYSCALL(truncate, const char *, path, off_t, length)
 	return r;
 }
 
-DEFINE_SYSCALL(ftruncate, int, fd, off_t, length)
+DEFINE_SYSCALL2(ftruncate, int, fd, off_t, length)
 {
 	log_info("ftruncate(%d, %p)", fd, length);
 	struct file *f = vfs_get(fd);
@@ -860,7 +861,7 @@ DEFINE_SYSCALL(ftruncate, int, fd, off_t, length)
 	return r;
 }
 
-DEFINE_SYSCALL(truncate64, const char *, path, loff_t, length)
+DEFINE_SYSCALL2(truncate64, const char *, path, loff_t, length)
 {
 	log_info("truncate64(\"%s\", %lld)", path, length);
 	AcquireSRWLockShared(&vfs->rw_lock);
@@ -881,7 +882,7 @@ DEFINE_SYSCALL(truncate64, const char *, path, loff_t, length)
 	return r;
 }
 
-DEFINE_SYSCALL(ftruncate64, int, fd, loff_t, length)
+DEFINE_SYSCALL2(ftruncate64, int, fd, loff_t, length)
 {
 	log_info("ftruncate(%d, %lld)", fd, length);
 	struct file *f = vfs_get(fd);
@@ -900,7 +901,7 @@ DEFINE_SYSCALL(ftruncate64, int, fd, loff_t, length)
 	return r;
 }
 
-DEFINE_SYSCALL(fsync, int, fd)
+DEFINE_SYSCALL1(fsync, int, fd)
 {
 	log_info("fsync(%d)", fd);
 	struct file *f = vfs_get(fd);
@@ -919,7 +920,7 @@ DEFINE_SYSCALL(fsync, int, fd)
 	return r;
 }
 
-DEFINE_SYSCALL(fdatasync, int, fd)
+DEFINE_SYSCALL1(fdatasync, int, fd)
 {
 	log_info("fdatasync(%d)", fd);
 	struct file *f = vfs_get(fd);
@@ -938,7 +939,7 @@ DEFINE_SYSCALL(fdatasync, int, fd)
 	return r;
 }
 
-DEFINE_SYSCALL(lseek, int, fd, off_t, offset, int, whence)
+DEFINE_SYSCALL3(lseek, int, fd, off_t, offset, int, whence)
 {
 	log_info("lseek(%d, %d, %d)", fd, offset, whence);
 	struct file *f = vfs_get(fd);
@@ -966,7 +967,7 @@ DEFINE_SYSCALL(lseek, int, fd, off_t, offset, int, whence)
 	return r;
 }
 
-DEFINE_SYSCALL(llseek, int, fd, unsigned long, offset_high, unsigned long, offset_low, loff_t *, result, int, whence)
+DEFINE_SYSCALL5(llseek, int, fd, unsigned long, offset_high, unsigned long, offset_low, loff_t *, result, int, whence)
 {
 	loff_t offset = ((uint64_t) offset_high << 32ULL) + offset_low;
 	log_info("llseek(%d, %lld, %p, %d)", fd, offset, result, whence);
@@ -1071,7 +1072,7 @@ static int resolve_path(const char *dirpath, const char *pathname, char *realpat
 				for (;;)
 				{
 					struct mount_point mp;
-					char *subpath;
+					const char *subpath;
 					*realpath = 0;
 					if (!find_mountpoint(realpath_start, &mp, &subpath))
 						return -L_ENOTDIR;
@@ -1192,7 +1193,7 @@ int vfs_openat(int dirfd, const char *pathname, int flags, int internal_flags, i
 		if (r < 0)
 			return r;
 		struct mount_point mp;
-		char *subpath;
+		const char *subpath;
 		if (!find_mountpoint(realpath, &mp, &subpath))
 			return -L_ENOENT;
 		struct file_system *fs = mp.fs;
@@ -1216,7 +1217,7 @@ int vfs_openat(int dirfd, const char *pathname, int flags, int internal_flags, i
 	}
 }
 
-DEFINE_SYSCALL(openat, int, dirfd, const char *, pathname, int, flags, int, mode)
+DEFINE_SYSCALL4(openat, int, dirfd, const char *, pathname, int, flags, int, mode)
 {
 	log_info("openat(%d, \"%s\", %x, %x)", dirfd, pathname, flags, mode);
 	if (!mm_check_read_string(pathname))
@@ -1236,19 +1237,19 @@ DEFINE_SYSCALL(openat, int, dirfd, const char *, pathname, int, flags, int, mode
 	return r;
 }
 
-DEFINE_SYSCALL(open, const char *, pathname, int, flags, int, mode)
+DEFINE_SYSCALL3(open, const char *, pathname, int, flags, int, mode)
 {
 	log_info("open(%p: \"%s\", %x, %x)", pathname, pathname, flags, mode);
 	return sys_openat(AT_FDCWD, pathname, flags, mode);
 }
 
-DEFINE_SYSCALL(creat, const char *, pathname, int, mode)
+DEFINE_SYSCALL2(creat, const char *, pathname, int, mode)
 {
 	log_info("creat(\"%s\", %x)", pathname, mode);
 	return sys_openat(AT_FDCWD, pathname, O_CREAT | O_WRONLY | O_TRUNC, mode);
 }
 
-DEFINE_SYSCALL(close, int, fd)
+DEFINE_SYSCALL1(close, int, fd)
 {
 	log_info("close(%d)", fd);
 	int r = 0;
@@ -1261,7 +1262,7 @@ DEFINE_SYSCALL(close, int, fd)
 	return r;
 }
 
-DEFINE_SYSCALL(mknodat, int, dirfd, const char *, pathname, int, mode, unsigned int, dev)
+DEFINE_SYSCALL4(mknodat, int, dirfd, const char *, pathname, int, mode, unsigned int, dev)
 {
 	log_info("mknodat(%d, \"%s\", %x, (%d:%d))", dirfd, pathname, mode, major(dev), minor(dev));
 	if (!mm_check_read_string(pathname))
@@ -1270,13 +1271,13 @@ DEFINE_SYSCALL(mknodat, int, dirfd, const char *, pathname, int, mode, unsigned 
 	return 0;
 }
 
-DEFINE_SYSCALL(mknod, const char *, pathname, int, mode, unsigned int, dev)
+DEFINE_SYSCALL3(mknod, const char *, pathname, int, mode, unsigned int, dev)
 {
 	log_info("mknod(\"%s\", %x, (%d:%d))", pathname, mode, major(dev), minor(dev));
 	return sys_mknodat(AT_FDCWD, pathname, mode, dev);
 }
 
-DEFINE_SYSCALL(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath, int, flags)
+DEFINE_SYSCALL5(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath, int, flags)
 {
 	log_info("linkat(%d, \"%s\", %d, \"%x\", %x)", olddirfd, oldpath, newdirfd, newpath, flags);
 	if (!mm_check_read_string(oldpath) || !mm_check_read_string(newpath))
@@ -1305,7 +1306,7 @@ DEFINE_SYSCALL(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, cons
 	if (r < 0)
 		goto out;
 	struct mount_point mp;
-	char *subpath;
+	const char *subpath;
 	if (!find_mountpoint(realpath, &mp, &subpath))
 		r = -L_ENOENT;
 	else
@@ -1322,13 +1323,13 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(link, const char *, oldpath, const char *, newpath)
+DEFINE_SYSCALL2(link, const char *, oldpath, const char *, newpath)
 {
 	log_info("link(\"%s\", \"%s\")", oldpath, newpath);
 	return sys_linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
 }
 
-DEFINE_SYSCALL(unlinkat, int, dirfd, const char *, pathname, int, flags)
+DEFINE_SYSCALL3(unlinkat, int, dirfd, const char *, pathname, int, flags)
 {
 	log_info("unlinkat(%d, \"%s\", %x)", dirfd, pathname, flags);
 	if (!mm_check_read_string(pathname))
@@ -1341,7 +1342,7 @@ DEFINE_SYSCALL(unlinkat, int, dirfd, const char *, pathname, int, flags)
 	if (r >= 0)
 	{
 		struct mount_point mp;
-		char *subpath;
+		const char *subpath;
 		if (!find_mountpoint(realpath, &mp, &subpath))
 			r = -L_ENOENT;
 		else
@@ -1367,13 +1368,13 @@ DEFINE_SYSCALL(unlinkat, int, dirfd, const char *, pathname, int, flags)
 	return r;
 }
 
-DEFINE_SYSCALL(unlink, const char *, pathname)
+DEFINE_SYSCALL1(unlink, const char *, pathname)
 {
 	log_info("unlink(\"%s\")", pathname);
 	return sys_unlinkat(AT_FDCWD, pathname, 0);
 }
 
-DEFINE_SYSCALL(symlinkat, const char *, target, int, newdirfd, const char *, linkpath)
+DEFINE_SYSCALL3(symlinkat, const char *, target, int, newdirfd, const char *, linkpath)
 {
 	log_info("symlinkat(\"%s\", %d, \"%s\")", target, newdirfd, linkpath);
 	if (!mm_check_read_string(target) || !mm_check_read_string(linkpath))
@@ -1385,7 +1386,7 @@ DEFINE_SYSCALL(symlinkat, const char *, target, int, newdirfd, const char *, lin
 	if (r >= 0)
 	{
 		struct mount_point mp;
-		char *subpath;
+		const char *subpath;
 		if (!find_mountpoint(realpath, &mp, &subpath))
 			r = -L_ENOTDIR;
 		else
@@ -1401,13 +1402,13 @@ DEFINE_SYSCALL(symlinkat, const char *, target, int, newdirfd, const char *, lin
 	return r;
 }
 
-DEFINE_SYSCALL(symlink, const char *, target, const char *, linkpath)
+DEFINE_SYSCALL2(symlink, const char *, target, const char *, linkpath)
 {
 	log_info("symlink(\"%s\", \"%s\")", target, linkpath);
 	return sys_symlinkat(target, AT_FDCWD, linkpath);
 }
 
-DEFINE_SYSCALL(readlinkat, int, dirfd, const char *, pathname, char *, buf, int, bufsize)
+DEFINE_SYSCALL4(readlinkat, int, dirfd, const char *, pathname, char *, buf, int, bufsize)
 {
 	log_info("readlinkat(%d, \"%s\", %p, %d)", dirfd, pathname, buf, bufsize);
 	if (!mm_check_read_string(pathname) || !mm_check_write(buf, bufsize))
@@ -1430,13 +1431,13 @@ DEFINE_SYSCALL(readlinkat, int, dirfd, const char *, pathname, char *, buf, int,
 	return r;
 }
 
-DEFINE_SYSCALL(readlink, const char *, pathname, char *, buf, int, bufsize)
+DEFINE_SYSCALL3(readlink, const char *, pathname, char *, buf, int, bufsize)
 {
 	log_info("readlink(\"%s\", %p, %d)", pathname, buf, bufsize);
 	return sys_readlinkat(AT_FDCWD, pathname, buf, bufsize);
 }
 
-DEFINE_SYSCALL(renameat2, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath, unsigned int, flags)
+DEFINE_SYSCALL5(renameat2, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath, unsigned int, flags)
 {
 	log_info("renameat2(%d, \"%s\", %d, \"%s\", %x)", olddirfd, oldpath, newdirfd, newpath, flags);
 	if (flags)
@@ -1462,7 +1463,7 @@ DEFINE_SYSCALL(renameat2, int, olddirfd, const char *, oldpath, int, newdirfd, c
 	if (r < 0)
 		goto out;
 	struct mount_point mp;
-	char *subpath;
+	const char *subpath;
 	if (!find_mountpoint(realpath, &mp, &subpath))
 		r = -L_EXDEV;
 	else
@@ -1479,19 +1480,19 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(renameat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath)
+DEFINE_SYSCALL4(renameat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath)
 {
 	log_info("renameat(%d, \"%s\", %d, \"%s\")", olddirfd, oldpath, newdirfd, newpath);
 	return sys_renameat2(olddirfd, oldpath, newdirfd, newpath, 0);
 }
 
-DEFINE_SYSCALL(rename, const char *, oldpath, const char *, newpath)
+DEFINE_SYSCALL2(rename, const char *, oldpath, const char *, newpath)
 {
 	log_info("rename(\"%s\", \"%s\")", oldpath, newpath);
 	return sys_renameat2(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
 }
 
-DEFINE_SYSCALL(mkdirat, int, dirfd, const char *, pathname, int, mode)
+DEFINE_SYSCALL3(mkdirat, int, dirfd, const char *, pathname, int, mode)
 {
 	log_info("mkdirat(%d, \"%s\", %d)", dirfd, pathname, mode);
 	if (mode != 0)
@@ -1516,7 +1517,7 @@ DEFINE_SYSCALL(mkdirat, int, dirfd, const char *, pathname, int, mode)
 	if (r >= 0)
 	{
 		struct mount_point mp;
-		char *subpath;
+		const char *subpath;
 		if (!find_mountpoint(realpath, &mp, &subpath))
 			r = -L_ENOTDIR;
 		else
@@ -1532,13 +1533,13 @@ DEFINE_SYSCALL(mkdirat, int, dirfd, const char *, pathname, int, mode)
 	return r;
 }
 
-DEFINE_SYSCALL(mkdir, const char *, pathname, int, mode)
+DEFINE_SYSCALL2(mkdir, const char *, pathname, int, mode)
 {
 	log_info("mkdir(\"%s\", %x)", pathname, mode);
 	return sys_mkdirat(AT_FDCWD, pathname, mode);
 }
 
-DEFINE_SYSCALL(rmdir, const char *, pathname)
+DEFINE_SYSCALL1(rmdir, const char *, pathname)
 {
 	log_info("rmdir(\"%s\")", pathname);
 	return sys_unlinkat(AT_FDCWD, pathname, AT_REMOVEDIR);
@@ -1561,7 +1562,7 @@ static intptr_t getdents_fill(void *buffer, uint64_t inode, const void *name, in
 	dirent->d_off = 0; /* TODO */
 	intptr_t len;
 	if (flags & GETDENTS_UTF16)
-		len = utf16_to_utf8_filename(name, namelen, dirent->d_name, size);
+		len = utf16_to_utf8_filename((const uint16_t*)name, namelen, dirent->d_name, size);
 	else
 	{
 		len = namelen;
@@ -1590,7 +1591,7 @@ static intptr_t getdents64_fill(void *buffer, uint64_t inode, const void *name, 
 	dirent->d_type = type;
 	intptr_t len;
 	if (flags & GETDENTS_UTF16)
-		len = utf16_to_utf8_filename(name, namelen, dirent->d_name, size);
+		len = utf16_to_utf8_filename((const uint16_t*)name, namelen, dirent->d_name, size);
 	else
 	{
 		len = namelen;
@@ -1603,7 +1604,7 @@ static intptr_t getdents64_fill(void *buffer, uint64_t inode, const void *name, 
 	return dirent->d_reclen;
 }
 
-DEFINE_SYSCALL(getdents, int, fd, struct linux_dirent *, dirent, unsigned int, count)
+DEFINE_SYSCALL3(getdents, int, fd, struct linux_dirent *, dirent, unsigned int, count)
 {
 	log_info("getdents(%d, %p, %d)", fd, dirent, count);
 	if (!mm_check_write(dirent, count))
@@ -1624,7 +1625,7 @@ DEFINE_SYSCALL(getdents, int, fd, struct linux_dirent *, dirent, unsigned int, c
 	return r;
 }
 
-DEFINE_SYSCALL(getdents64, int, fd, struct linux_dirent64 *, dirent, unsigned int, count)
+DEFINE_SYSCALL3(getdents64, int, fd, struct linux_dirent64 *, dirent, unsigned int, count)
 {
 	log_info("getdents64(%d, %p, %d)", fd, dirent, count);
 	if (!mm_check_write(dirent, count))
@@ -1736,7 +1737,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(newstatat, int, dirfd, const char *, pathname, struct newstat *, buf, int, flags)
+DEFINE_SYSCALL4(newstatat, int, dirfd, const char *, pathname, struct newstat *, buf, int, flags)
 {
 	log_info("newstatat(%d, \"%s\", %p, %x)", dirfd, pathname, buf, flags);
 	if ((!(flags & AT_EMPTY_PATH) && !mm_check_read_string(pathname)) || !mm_check_write(buf, sizeof(struct newstat)))
@@ -1744,7 +1745,7 @@ DEFINE_SYSCALL(newstatat, int, dirfd, const char *, pathname, struct newstat *, 
 	return vfs_statat(dirfd, pathname, buf, flags);
 }
 
-DEFINE_SYSCALL(newfstat, int, fd, struct newstat *, buf)
+DEFINE_SYSCALL2(newfstat, int, fd, struct newstat *, buf)
 {
 	log_info("newfstat(%d, %p)", fd, buf);
 	if (!mm_check_write(buf, sizeof(struct newstat)))
@@ -1752,7 +1753,7 @@ DEFINE_SYSCALL(newfstat, int, fd, struct newstat *, buf)
 	return vfs_statat(fd, NULL, buf, AT_EMPTY_PATH);
 }
 
-DEFINE_SYSCALL(newstat, const char *, pathname, struct newstat *, buf)
+DEFINE_SYSCALL2(newstat, const char *, pathname, struct newstat *, buf)
 {
 	log_info("newstat(\"%s\", %p)", pathname, buf);
 	if (!mm_check_read_string(pathname) || !mm_check_write(buf, sizeof(struct newstat)))
@@ -1760,7 +1761,7 @@ DEFINE_SYSCALL(newstat, const char *, pathname, struct newstat *, buf)
 	return vfs_statat(AT_FDCWD, pathname, buf, 0);
 }
 
-DEFINE_SYSCALL(stat106, const char *, pathname, struct stat_106 *, buf)
+DEFINE_SYSCALL2(stat106, const char *, pathname, struct stat_106 *, buf)
 {
     struct newstat s = {0};
 	log_info("stat(\"%s\", %p)", pathname, buf);
@@ -1790,7 +1791,7 @@ DEFINE_SYSCALL(stat106, const char *, pathname, struct stat_106 *, buf)
     return r;
 }
 
-DEFINE_SYSCALL(newlstat, const char *, pathname, struct newstat *, buf)
+DEFINE_SYSCALL2(newlstat, const char *, pathname, struct newstat *, buf)
 {
 	log_info("newlstat(\"%s\", %p)", pathname, buf);
 	if (!mm_check_read_string(pathname) || !mm_check_write(buf, sizeof(struct newstat)))
@@ -1798,7 +1799,7 @@ DEFINE_SYSCALL(newlstat, const char *, pathname, struct newstat *, buf)
 	return vfs_statat(AT_FDCWD, pathname, buf, AT_SYMLINK_NOFOLLOW);
 }
 
-DEFINE_SYSCALL(fstatat64, int, dirfd, const char *, pathname, struct stat64 *, buf, int, flags)
+DEFINE_SYSCALL4(fstatat64, int, dirfd, const char *, pathname, struct stat64 *, buf, int, flags)
 {
 	log_info("fstatat64(%d, \"%s\", %p, %x)", dirfd, pathname, buf, flags);
 	if ((!(flags & AT_EMPTY_PATH) && !mm_check_read_string(pathname)) || !mm_check_write(buf, sizeof(struct stat64)))
@@ -1810,7 +1811,7 @@ DEFINE_SYSCALL(fstatat64, int, dirfd, const char *, pathname, struct stat64 *, b
 	return stat64_from_newstat(buf, &stat);
 }
 
-DEFINE_SYSCALL(fstat64, int, fd, struct stat64 *, buf)
+DEFINE_SYSCALL2(fstat64, int, fd, struct stat64 *, buf)
 {
 	log_info("fstat64(%d, %p)", fd, buf);
 	if (!mm_check_write(buf, sizeof(struct stat64)))
@@ -1822,7 +1823,7 @@ DEFINE_SYSCALL(fstat64, int, fd, struct stat64 *, buf)
 	return stat64_from_newstat(buf, &stat);
 }
 
-DEFINE_SYSCALL(stat64, const char *, pathname, struct stat64 *, buf)
+DEFINE_SYSCALL2(stat64, const char *, pathname, struct stat64 *, buf)
 {
 	log_info("stat64(\"%s\", %p)", pathname, buf);
 	if (!mm_check_write(buf, sizeof(struct stat64)))
@@ -1834,7 +1835,7 @@ DEFINE_SYSCALL(stat64, const char *, pathname, struct stat64 *, buf)
 	return stat64_from_newstat(buf, &stat);
 }
 
-DEFINE_SYSCALL(lstat64, const char *, pathname, struct stat64 *, buf)
+DEFINE_SYSCALL2(lstat64, const char *, pathname, struct stat64 *, buf)
 {
 	log_info("lstat64(\"%s\", %p)", pathname, buf);
 	if (!mm_check_write(buf, sizeof(struct stat64)))
@@ -1846,7 +1847,7 @@ DEFINE_SYSCALL(lstat64, const char *, pathname, struct stat64 *, buf)
 	return stat64_from_newstat(buf, &stat);
 }
 
-DEFINE_SYSCALL(fstat, int, fd, struct stat *, buf)
+DEFINE_SYSCALL2(fstat, int, fd, struct stat *, buf)
 {
 	log_info("fstat(%d, %p)", fd, buf);
 	if (!mm_check_write(buf, sizeof(struct stat)))
@@ -1858,7 +1859,7 @@ DEFINE_SYSCALL(fstat, int, fd, struct stat *, buf)
 	return stat_from_newstat(buf, &stat);
 }
 
-DEFINE_SYSCALL(stat, const char *, pathname, struct stat *, buf)
+DEFINE_SYSCALL2(stat, const char *, pathname, struct stat *, buf)
 {
 	log_info("stat(\"%s\", %p)", pathname, buf);
 	if (!mm_check_write(buf, sizeof(struct stat)))
@@ -1870,7 +1871,7 @@ DEFINE_SYSCALL(stat, const char *, pathname, struct stat *, buf)
 	return stat_from_newstat(buf, &stat);
 }
 
-DEFINE_SYSCALL(lstat, const char *, pathname, struct stat *, buf)
+DEFINE_SYSCALL2(lstat, const char *, pathname, struct stat *, buf)
 {
 	log_info("lstat(\"%d\", %p)", pathname, buf);
 	if (!mm_check_write(buf, sizeof(struct stat)))
@@ -1950,7 +1951,7 @@ static int vfs_statfs(const char *pathname, struct statfs64 *buf)
 	return r;
 }
 
-DEFINE_SYSCALL(fstatfs, int, fd, struct statfs *, buf)
+DEFINE_SYSCALL2(fstatfs, int, fd, struct statfs *, buf)
 {
 	log_info("fstatfs(%d, %p)", fd, buf);
 	if (!mm_check_write(buf, sizeof(struct statfs)))
@@ -1962,7 +1963,7 @@ DEFINE_SYSCALL(fstatfs, int, fd, struct statfs *, buf)
 	return statfs_from_statfs64(buf, &statfs64);
 }
 
-DEFINE_SYSCALL(statfs, const char *, pathname, struct statfs *, buf)
+DEFINE_SYSCALL2(statfs, const char *, pathname, struct statfs *, buf)
 {
 	log_info("statfs(\"%s\", %p)", pathname, buf);
 	if (!mm_check_write(buf, sizeof(struct statfs)))
@@ -1974,7 +1975,7 @@ DEFINE_SYSCALL(statfs, const char *, pathname, struct statfs *, buf)
 	return statfs_from_statfs64(buf, &statfs64);
 }
 
-DEFINE_SYSCALL(fstatfs64, int, fd, size_t, sz, struct statfs64 *, buf)
+DEFINE_SYSCALL3(fstatfs64, int, fd, size_t, sz, struct statfs64 *, buf)
 {
 	log_info("fstatfs64(%d, %d, %p)", fd, sz, buf);
 	if (sz != sizeof(struct statfs64))
@@ -1984,7 +1985,7 @@ DEFINE_SYSCALL(fstatfs64, int, fd, size_t, sz, struct statfs64 *, buf)
 	return vfs_fstatfs(fd, buf);
 }
 
-DEFINE_SYSCALL(statfs64, const char *, pathname, size_t, sz, struct statfs64 *, buf)
+DEFINE_SYSCALL3(statfs64, const char *, pathname, size_t, sz, struct statfs64 *, buf)
 {
 	log_info("statfs64(\"%s\", %d, %p)", pathname, sz, buf);
 	if (sz != sizeof(struct statfs64))
@@ -1994,7 +1995,7 @@ DEFINE_SYSCALL(statfs64, const char *, pathname, size_t, sz, struct statfs64 *, 
 	return vfs_statfs(pathname, buf);
 }
 
-DEFINE_SYSCALL(fadvise64_64, int, fd, loff_t, offset, loff_t, len, int, advice)
+DEFINE_SYSCALL4(fadvise64_64, int, fd, loff_t, offset, loff_t, len, int, advice)
 {
 	log_info("fadvise64_64(%d, %lld, %lld, %d)", fd, offset, len, advice);
 	/* It seems windows does not support any of the fadvise semantics
@@ -2025,12 +2026,14 @@ DEFINE_SYSCALL(fadvise64_64, int, fd, loff_t, offset, loff_t, len, int, advice)
 	return r;
 }
 
-DEFINE_SYSCALL(fadvise64, int, fd, loff_t, offset, size_t, len, int, advice)
+DEFINE_SYSCALL4(fadvise64, int, fd, loff_t, offset, size_t, len, int, advice)
 {
 	return sys_fadvise64_64(fd, offset, len, advice);
 }
 
-DEFINE_SYSCALL(ioctl, int, fd, unsigned int, cmd, unsigned long, arg)
+EXTERN_C int sys_fcntl(int fd, int cmd, int arg);
+
+DEFINE_SYSCALL3(ioctl, int, fd, unsigned int, cmd, unsigned long, arg)
 {
 	log_info("ioctl(%d, %x, %x)", fd, cmd, arg);
 	if (cmd == L_FIOCLEX)
@@ -2071,7 +2074,7 @@ DEFINE_SYSCALL(ioctl, int, fd, unsigned int, cmd, unsigned long, arg)
 	return r;
 }
 
-DEFINE_SYSCALL(utime, const char *, filename, const struct utimbuf *, times)
+DEFINE_SYSCALL2(utime, const char *, filename, const struct utimbuf *, times)
 {
 	log_info("utime(\"%s\", %p)", filename, times);
 	if (!mm_check_read_string(filename) || (times && !mm_check_read(times, sizeof(struct utimbuf))))
@@ -2107,7 +2110,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(utimes, const char *, filename, const struct timeval *, times)
+DEFINE_SYSCALL2(utimes, const char *, filename, const struct timeval *, times)
 {
 	log_info("utimes(\"%s\", %p)", filename, times);
 	if (!mm_check_read_string(filename) || (times && !mm_check_read(times, 2 * sizeof(struct timeval))))
@@ -2140,7 +2143,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(utimensat, int, dirfd, const char *, pathname, const struct timespec *, times, int, flags)
+DEFINE_SYSCALL4(utimensat, int, dirfd, const char *, pathname, const struct timespec *, times, int, flags)
 {
 	log_info("utimensat(%d, \"%s\", %p, 0x%x)", dirfd, pathname, times, flags);
 	if ((pathname && !mm_check_read_string(pathname)) || (times && !mm_check_read(times, 2 * sizeof(struct timespec))))
@@ -2184,7 +2187,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(chdir, const char *, pathname)
+DEFINE_SYSCALL1(chdir, const char *, pathname)
 {
 	log_info("chdir(%s)", pathname);
 	if (!mm_check_read_string(pathname))
@@ -2201,7 +2204,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(fchdir, int, fd)
+DEFINE_SYSCALL1(fchdir, int, fd)
 {
 	log_info("fchdir(%d)", fd);
 	AcquireSRWLockExclusive(&vfs->rw_lock);
@@ -2219,7 +2222,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(getcwd, char *, buf, size_t, size)
+DEFINE_SYSCALL2(getcwd, char *, buf, size_t, size)
 {
 	log_info("getcwd(%p, %p)", buf, size);
 	if (!mm_check_write(buf, size))
@@ -2239,7 +2242,7 @@ DEFINE_SYSCALL(getcwd, char *, buf, size_t, size)
 	return r;
 }
 
-DEFINE_SYSCALL(fcntl, int, fd, int, cmd, int, arg)
+DEFINE_SYSCALL3(fcntl, int, fd, int, cmd, int, arg)
 {
 	log_info("fcntl(%d, %d)", fd, cmd);
 	if (cmd == F_DUPFD)
@@ -2292,12 +2295,12 @@ DEFINE_SYSCALL(fcntl, int, fd, int, cmd, int, arg)
 	return r;
 }
 
-DEFINE_SYSCALL(fcntl64, int, fd, int, cmd, int, arg)
+DEFINE_SYSCALL3(fcntl64, int, fd, int, cmd, int, arg)
 {
 	return sys_fcntl(fd, cmd, arg);
 }
 
-DEFINE_SYSCALL(faccessat, int, dirfd, const char *, pathname, int, mode, int, flags)
+DEFINE_SYSCALL4(faccessat, int, dirfd, const char *, pathname, int, mode, int, flags)
 {
 	log_info("faccessat(%d, \"%s\", %d, %x)", dirfd, pathname, mode, flags);
 	if (!mm_check_read_string(pathname))
@@ -2317,13 +2320,13 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(access, const char *, pathname, int, mode)
+DEFINE_SYSCALL2(access, const char *, pathname, int, mode)
 {
 	log_info("access(\"%s\", %d)", pathname, mode);
 	return sys_faccessat(AT_FDCWD, pathname, mode, 0);
 }
 
-DEFINE_SYSCALL(fchmodat, int, dirfd, const char *, pathname, int, mode, int, flags)
+DEFINE_SYSCALL4(fchmodat, int, dirfd, const char *, pathname, int, mode, int, flags)
 {
 	log_info("fchmodat(%d, \"%s\", %d, %x)", dirfd, pathname, mode, flags);
 	if (!mm_check_read_string(pathname))
@@ -2334,27 +2337,27 @@ DEFINE_SYSCALL(fchmodat, int, dirfd, const char *, pathname, int, mode, int, fla
 	return 0;
 }
 
-DEFINE_SYSCALL(fchmod, int, fd, int, mode)
+DEFINE_SYSCALL2(fchmod, int, fd, int, mode)
 {
 	log_info("fchmod(%d, %d)", fd, mode);
 	log_error("fchmod() not implemented.");
 	return 0;
 }
 
-DEFINE_SYSCALL(chmod, const char *, pathname, int, mode)
+DEFINE_SYSCALL2(chmod, const char *, pathname, int, mode)
 {
 	log_info("chmod(\"%s\", %d)", pathname, mode);
 	return sys_fchmodat(AT_FDCWD, pathname, mode, 0);
 }
 
-DEFINE_SYSCALL(umask, int, mask)
+DEFINE_SYSCALL1(umask, int, mask)
 {
 	int old = vfs->umask;
 	vfs->umask = mask;
 	return old;
 }
 
-DEFINE_SYSCALL(chroot, const char *, pathname)
+DEFINE_SYSCALL1(chroot, const char *, pathname)
 {
 	log_info("chroot(\"%s\")", pathname);
 	if (!mm_check_read_string(pathname))
@@ -2363,7 +2366,7 @@ DEFINE_SYSCALL(chroot, const char *, pathname)
 	return -L_ENOSYS;
 }
 
-DEFINE_SYSCALL(fchownat, int, dirfd, const char *, pathname, uid_t, owner, gid_t, group, int, flags)
+DEFINE_SYSCALL5(fchownat, int, dirfd, const char *, pathname, uid_t, owner, gid_t, group, int, flags)
 {
 	log_info("fchownat(%d, \"%s\", %d, %d, %x)", dirfd, pathname, owner, group, flags);
 	if (pathname && !mm_check_read_string(pathname))
@@ -2372,19 +2375,19 @@ DEFINE_SYSCALL(fchownat, int, dirfd, const char *, pathname, uid_t, owner, gid_t
 	return 0;
 }
 
-DEFINE_SYSCALL(fchown, int, fd, uid_t, owner, gid_t, group)
+DEFINE_SYSCALL3(fchown, int, fd, uid_t, owner, gid_t, group)
 {
 	log_info("fchown(%d, %d, %d)", fd, owner, group);
 	return sys_fchownat(AT_FDCWD, NULL, owner, group, AT_EMPTY_PATH);
 }
 
-DEFINE_SYSCALL(chown, const char *, pathname, uid_t, owner, gid_t, group)
+DEFINE_SYSCALL3(chown, const char *, pathname, uid_t, owner, gid_t, group)
 {
 	log_info("chown(\"%s\", %d, %d)", pathname, owner, group);
 	return sys_fchownat(AT_FDCWD, pathname, owner, group, 0);
 }
 
-DEFINE_SYSCALL(lchown, const char *, pathname, uid_t, owner, gid_t, group)
+DEFINE_SYSCALL3(lchown, const char *, pathname, uid_t, owner, gid_t, group)
 {
 	log_info("lchown(\"%s\", %d, %d)", pathname, owner, group);
 	return sys_fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
@@ -2572,7 +2575,7 @@ static int vfs_pselect6(int nfds, struct fdset *readfds, struct fdset *writefds,
 	return r;
 }
 
-DEFINE_SYSCALL(poll, struct linux_pollfd *, fds, int, nfds, int, timeout)
+DEFINE_SYSCALL3(poll, struct linux_pollfd *, fds, int, nfds, int, timeout)
 {
 	log_info("poll(0x%p, %d, %d)", fds, nfds, timeout);
 	if (!mm_check_write(fds, nfds * sizeof(struct linux_pollfd)))
@@ -2580,7 +2583,7 @@ DEFINE_SYSCALL(poll, struct linux_pollfd *, fds, int, nfds, int, timeout)
 	return vfs_ppoll(fds, nfds, timeout, NULL);
 }
 
-DEFINE_SYSCALL(ppoll, struct linux_pollfd *, fds, int, nfds, const struct timespec *, timeout_ts, const sigset_t *, sigmask, size_t, sigsetsize)
+DEFINE_SYSCALL5(ppoll, struct linux_pollfd *, fds, int, nfds, const struct timespec *, timeout_ts, const sigset_t *, sigmask, size_t, sigsetsize)
 {
 	log_info("ppoll(%p, %d, %p, %p)", fds, nfds, timeout_ts, sigmask);
 	if (sigsetsize != sizeof(sigset_t))
@@ -2593,7 +2596,7 @@ DEFINE_SYSCALL(ppoll, struct linux_pollfd *, fds, int, nfds, const struct timesp
 	return vfs_ppoll(fds, nfds, timeout, sigmask);
 }
 
-DEFINE_SYSCALL(select, int, nfds, struct fdset *, readfds, struct fdset *, writefds, struct fdset *, exceptfds, struct timeval *, timeout)
+DEFINE_SYSCALL5(select, int, nfds, struct fdset *, readfds, struct fdset *, writefds, struct fdset *, exceptfds, struct timeval *, timeout)
 {
 	log_info("select(%d, 0x%p, 0x%p, 0x%p, 0x%p)", nfds, readfds, writefds, exceptfds, timeout);
 	if ((readfds && !mm_check_write(readfds, sizeof(struct fdset)))
@@ -2609,7 +2612,7 @@ DEFINE_SYSCALL(select, int, nfds, struct fdset *, readfds, struct fdset *, write
 	return vfs_pselect6(nfds, readfds, writefds, exceptfds, time, NULL);
 }
 
-DEFINE_SYSCALL(pselect6, int, nfds, struct fdset *, readfds, struct fdset *, writefds, struct fdset *, exceptfds,
+DEFINE_SYSCALL6(pselect6, int, nfds, struct fdset *, readfds, struct fdset *, writefds, struct fdset *, exceptfds,
 	const struct timespec *, timeout_ts, void *, sigmask_data)
 {
 	struct sigmask_data
@@ -2634,7 +2637,7 @@ DEFINE_SYSCALL(pselect6, int, nfds, struct fdset *, readfds, struct fdset *, wri
 	return vfs_pselect6(nfds, readfds, writefds, exceptfds, timeout, sigmask);
 }
 
-DEFINE_SYSCALL(epoll_create1, int, flags)
+DEFINE_SYSCALL1(epoll_create1, int, flags)
 {
 	log_info("epoll_create1(%d)", flags);
 
@@ -2652,7 +2655,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(epoll_create, int, size)
+DEFINE_SYSCALL1(epoll_create, int, size)
 {
 	log_info("epoll_create(%d)", size);
 	if (size <= 0)
@@ -2660,7 +2663,7 @@ DEFINE_SYSCALL(epoll_create, int, size)
 	return sys_epoll_create1(0);
 }
 
-DEFINE_SYSCALL(epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event)
+DEFINE_SYSCALL4(epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event)
 {
 	log_info("epoll_ctl(epfd=%d, op=%d, fd=%d, epoll_event=%p)", epfd, op, fd, event);
 	if (!mm_check_read(event, sizeof(struct epoll_event)))
@@ -2711,7 +2714,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(epoll_pwait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout, const sigset_t *, sigmask)
+DEFINE_SYSCALL5(epoll_pwait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout, const sigset_t *, sigmask)
 {
 	log_info("epoll_pwait(%d, %p, %d, %d, %p)", epfd, events, maxevents, timeout, sigmask);
 	if (!mm_check_write(events, sizeof(struct epoll_event) * maxevents))
@@ -2738,103 +2741,103 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout)
+DEFINE_SYSCALL4(epoll_wait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout)
 {
 	return sys_epoll_pwait(epfd, events, maxevents, timeout, NULL);
 }
 
-DEFINE_SYSCALL(getxattr, const char *, path, const char *, name, void *, value, size_t, size)
+DEFINE_SYSCALL4(getxattr, const char *, path, const char *, name, void *, value, size_t, size)
 {
 	log_info("getxattr(\"%s\", \"%s\", %p, %d)", path, name, value, size);
 	log_warning("getxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(lgetxattr, const char *, path, const char *, name, void *, value, size_t, size)
+DEFINE_SYSCALL4(lgetxattr, const char *, path, const char *, name, void *, value, size_t, size)
 {
 	log_info("lgetxattr(\"%s\", \"%s\", %p, %d)", path, name, value, size);
 	log_warning("lgetxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(fgetxattr, int, fd, const char *, name, void *, value, size_t, size)
+DEFINE_SYSCALL4(fgetxattr, int, fd, const char *, name, void *, value, size_t, size)
 {
 	log_info("fgetxattr(%d, \"%s\", %p, %d)", fd, name, value, size);
 	log_warning("fgetxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(listxattr, const char *, path, char *, list, size_t, size)
+DEFINE_SYSCALL3(listxattr, const char *, path, char *, list, size_t, size)
 {
 	log_info("listxattr(\"%s\", %p, %d)", path, list, size);
 	log_warning("listxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(llistxattr, const char *, path, char *, list, size_t, size)
+DEFINE_SYSCALL3(llistxattr, const char *, path, char *, list, size_t, size)
 {
 	log_info("llistxattr(\"%s\", %p, %d)", path, list, size);
 	log_warning("llistxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(flistxattr, int, fd, char *, list, size_t, size)
+DEFINE_SYSCALL3(flistxattr, int, fd, char *, list, size_t, size)
 {
 	log_info("flistxattr(%d, %p, %d)", fd, list, size);
 	log_warning("flistxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(setxattr, const char *, path, const char *, name, const void *, value, size_t, size, int, flags)
+DEFINE_SYSCALL5(setxattr, const char *, path, const char *, name, const void *, value, size_t, size, int, flags)
 {
 	log_info("setxattr(\"%s\", \"%s\", %p, %d, %x)", path, name, value, size, flags);
 	log_warning("setxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(lsetxattr, const char *, path, const char *, name, const void *, value, size_t, size, int, flags)
+DEFINE_SYSCALL5(lsetxattr, const char *, path, const char *, name, const void *, value, size_t, size, int, flags)
 {
 	log_info("lsetxattr(\"%s\", \"%s\", %p, %d, %x)", path, name, value, size, flags);
 	log_warning("lsetxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(fsetxattr, int, fd, const char *, name, const void *, value, size_t, size, int, flags)
+DEFINE_SYSCALL5(fsetxattr, int, fd, const char *, name, const void *, value, size_t, size, int, flags)
 {
 	log_info("fsetxattr(%d, \"%s\", %p, %d, %x)", fd, name, value, size, flags);
 	log_warning("fsetxattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(removexattr, const char *, path, const char *, name)
+DEFINE_SYSCALL2(removexattr, const char *, path, const char *, name)
 {
 	log_info("removexattr(\"%s\", \"%s\")", path, name);
 	log_warning("removexattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(lremovexattr, const char *, path, const char *, name)
+DEFINE_SYSCALL2(lremovexattr, const char *, path, const char *, name)
 {
 	log_info("lremovexattr(\"%s\", \"%s\")", path, name);
 	log_warning("lremovexattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(fremovexattr, int, fd, const char *, name)
+DEFINE_SYSCALL2(fremovexattr, int, fd, const char *, name)
 {
 	log_info("fremovexattr(%d, \"%s\")", fd, name);
 	log_warning("fremovexattr() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len) 
+DEFINE_SYSCALL4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len) 
 {
 	log_info("fallocate(%d, %d, %d, %d)", fd, mode, offset, len);
 	log_warning("fallocate() not implemented.");
 	return -L_EOPNOTSUPP;
 }
 
-DEFINE_SYSCALL(flock, int, fd, int, operation)
+DEFINE_SYSCALL2(flock, int, fd, int, operation)
 {
 	log_info("flock(%d, %d)", fd, operation);
 	log_error("flock() not implemented.");

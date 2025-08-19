@@ -28,9 +28,9 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-extern void *mm_check_read_begin, *mm_check_read_end, *mm_check_read_fail;
-extern void *mm_check_read_string_begin, *mm_check_read_string_end, *mm_check_read_string_fail;
-extern void *mm_check_write_begin, *mm_check_write_end, *mm_check_write_fail;
+EXTERN_C void *mm_check_read_begin, *mm_check_read_end, *mm_check_read_fail;
+EXTERN_C void *mm_check_read_string_begin, *mm_check_read_string_end, *mm_check_read_string_fail;
+EXTERN_C void *mm_check_write_begin, *mm_check_write_end, *mm_check_write_fail;
 
 extern int sys_gettimeofday(struct timeval *tv, struct timezone *tz);
 extern intptr_t sys_time(intptr_t *t);

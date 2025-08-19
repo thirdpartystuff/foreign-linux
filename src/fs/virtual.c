@@ -270,20 +270,20 @@ static int virtualfs_char_close(struct file *f)
 	return 0;
 }
 
-static size_t virtualfs_char_read(struct file *f, void *buf, size_t count)
+static ssize_t virtualfs_char_read(struct file *f, void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct virtualfs_char *file = (struct virtualfs_char *)f;
-	size_t r = file->desc->read(file->tag, buf, count);
+	ssize_t r = file->desc->read(file->tag, buf, count);
 	ReleaseSRWLockShared(&f->rw_lock);
 	return r;
 }
 
-static size_t virtualfs_char_write(struct file *f, const void *buf, size_t count)
+static ssize_t virtualfs_char_write(struct file *f, const void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct virtualfs_char *file = (struct virtualfs_char *)f;
-	size_t r = file->desc->write(file->tag, buf, count);
+	ssize_t r = file->desc->write(file->tag, buf, count);
 	ReleaseSRWLockShared(&f->rw_lock);
 	return r;
 }
@@ -345,11 +345,11 @@ static int virtualfs_text_close(struct file *f)
 	return 0;
 }
 
-static size_t virtualfs_text_read(struct file *f, void *buf, size_t count)
+static ssize_t virtualfs_text_read(struct file *f, void *buf, size_t count)
 {
 	AcquireSRWLockExclusive(&f->rw_lock);
 	struct virtualfs_text *file = (struct virtualfs_text *)f;
-	int read_count = (int)min(count, (size_t)(file->textlen - file->position));
+	ssize_t read_count = (ssize_t)min(count, (size_t)(file->textlen - file->position));
 	memcpy(buf, file->text + file->position, read_count);
 	file->position += read_count;
 	ReleaseSRWLockExclusive(&f->rw_lock);
@@ -442,7 +442,7 @@ static int virtualfs_param_close(struct file *f)
 	return 0;
 }
 
-static size_t virtualfs_param_read(struct file *f, void *buf, size_t count)
+static ssize_t virtualfs_param_read(struct file *f, void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct virtualfs_param *file = (struct virtualfs_param *)f;
@@ -456,7 +456,7 @@ static size_t virtualfs_param_read(struct file *f, void *buf, size_t count)
 	switch (file->desc->valtype)
 	{
 	case VIRTUALFS_PARAM_TYPE_RAW:
-		r = file->desc->get(file->tag, buf, count);
+		r = file->desc->get(file->tag, (char*)buf, count);
 		break;
 	case VIRTUALFS_PARAM_TYPE_INT:
 	{
@@ -486,7 +486,7 @@ out:
 	return r;
 }
 
-static size_t virtualfs_param_write(struct file *f, const void *buf, size_t count)
+static ssize_t virtualfs_param_write(struct file *f, const void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct virtualfs_param *file = (struct virtualfs_param *)f;
@@ -501,7 +501,7 @@ static size_t virtualfs_param_write(struct file *f, const void *buf, size_t coun
 	{
 	case VIRTUALFS_PARAM_TYPE_RAW:
 	{
-		file->desc->set(file->tag, buf, count);
+		file->desc->set(file->tag, (const char*)buf, count);
 		break;
 	}
 	case VIRTUALFS_PARAM_TYPE_INT:

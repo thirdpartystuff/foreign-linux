@@ -54,7 +54,7 @@ static struct heap_data *heap;
 void heap_init()
 {
 	log_info("heap subsystem initializating...");
-	heap = mm_static_alloc(sizeof(struct heap_data));
+	heap = (struct heap_data*)mm_static_alloc(sizeof(struct heap_data));
 	InitializeSRWLock(&heap->rw_lock);
 	heap->pools[0].objsize = 16;		heap->pools[0].first = NULL;
 	heap->pools[1].objsize = 32;		heap->pools[1].first = NULL;
@@ -87,14 +87,14 @@ void heap_afterfork_parent()
 
 void heap_afterfork_child()
 {
-	heap = mm_static_alloc(sizeof(struct heap_data));
+	heap = (struct heap_data*)mm_static_alloc(sizeof(struct heap_data));
 	InitializeSRWLock(&heap->rw_lock);
 }
 
 #define ALIGN(x, align) (((x) + ((align) - 1)) & -(align))
 static struct bucket *alloc_bucket(int objsize)
 {
-	struct bucket *b = mm_mmap(NULL, BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE,
+	struct bucket *b = (struct bucket*)mm_mmap(NULL, BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE,
 		INTERNAL_MAP_TOPDOWN | INTERNAL_MAP_NORESET | INTERNAL_MAP_VIRTUALALLOC, NULL, 0);
 	b->ref_cnt = 0;
 	b->next_bucket = NULL;

@@ -34,7 +34,7 @@ struct cpuinfo_feature
 	const char *name;
 };
 
-#define BIT(x)	(1 << (x))
+#define BIT(x)	((uint32_t)1 << (x))
 
 /* Feature flags */
 /* EAX = 0x00000001, EDX */

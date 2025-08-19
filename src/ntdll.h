@@ -1,5 +1,9 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define WIN32_NO_STATUS
 #include <windef.h>
 #include <ntstatus.h>
@@ -808,3 +812,7 @@ NTSYSAPI NTSTATUS NTAPI LdrGetProcedureAddress(
 	_In_		WORD Ordinal,
 	_Out_		PVOID *FunctionAddress
 	);
+
+#ifdef __cplusplus
+}
+#endif

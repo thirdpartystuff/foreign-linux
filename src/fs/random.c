@@ -21,13 +21,14 @@
 #include <fs/file.h>
 #include <fs/virtual.h>
 #include <syscall/syscall.h>
+#include <syscall/mm.h>
 #include <log.h>
 
 #define SystemFunction036 NTAPI SystemFunction036
 #include <NTSecAPI.h>
 #undef SystemFunction036
 
-DEFINE_SYSCALL(getrandom, void *, buf, size_t, buflen, unsigned int, flags)
+DEFINE_SYSCALL3(getrandom, void *, buf, size_t, buflen, unsigned int, flags)
 {
 	log_info("getrandom(%p, %d, %x)", buf, buflen, flags);
 	if (!mm_check_write(buf, buflen))

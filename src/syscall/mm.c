@@ -212,7 +212,7 @@ static __forceinline void remove_section_handle(size_t i)
 
 static void munmap_list_add(void *addr, size_t length)
 {
-	struct mm_munmap_list_entry *e = HeapAlloc(GetProcessHeap(), 0, sizeof(struct mm_munmap_list_entry));
+	struct mm_munmap_list_entry *e = (struct mm_munmap_list_entry*)HeapAlloc(GetProcessHeap(), 0, sizeof(struct mm_munmap_list_entry));
 	e->addr = addr;
 	e->length = length;
 	e->next = mm->munmap_list;
@@ -348,7 +348,7 @@ void mm_init()
 		slist_add(&mm->entry_free_list, &mm->entries[i].free_list);
 	mm->brk = 0;
 	/* Initialize section handle table */
-	mm_section_handle = VirtualAlloc(NULL, BLOCK_COUNT * sizeof(HANDLE), MEM_RESERVE | MEM_TOP_DOWN, PAGE_READWRITE);
+	mm_section_handle = (HANDLE*)VirtualAlloc(NULL, BLOCK_COUNT * sizeof(HANDLE), MEM_RESERVE | MEM_TOP_DOWN, PAGE_READWRITE);
 	/* Initialize static alloc */
 	mm->static_alloc_begin = mm_mmap(NULL, MM_STATIC_ALLOC_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS,
 		INTERNAL_MAP_TOPDOWN | INTERNAL_MAP_NORESET | INTERNAL_MAP_VIRTUALALLOC, NULL, 0);
@@ -974,7 +974,7 @@ int mm_fork(HANDLE process)
 		return 0;
 	}
 	/* Copy section handle tables */
-	HANDLE *forked_section_handle = VirtualAllocEx(process, NULL, BLOCK_COUNT * sizeof(HANDLE), MEM_RESERVE | MEM_TOP_DOWN, PAGE_READWRITE);
+	HANDLE *forked_section_handle = (HANDLE*)VirtualAllocEx(process, NULL, BLOCK_COUNT * sizeof(HANDLE), MEM_RESERVE | MEM_TOP_DOWN, PAGE_READWRITE);
 	status = NtWriteVirtualMemory(process, &mm_section_handle, &forked_section_handle, sizeof(HANDLE *), NULL);
 	if (!NT_SUCCESS(status))
 	{
@@ -1102,6 +1102,8 @@ void mm_afterfork_child()
 	mm->static_alloc_begin = (uint8_t *)mm->static_alloc_end - MM_STATIC_ALLOC_SIZE;
 }
 
+static int munmap_internal(void *addr, size_t length);
+
 static void *mmap_internal(void *addr, size_t length, int prot, int flags, int internal_flags, struct file *f, off_t offset_pages)
 {
 	if (length == 0)
@@ -1214,7 +1216,6 @@ static void *mmap_internal(void *addr, size_t length, int prot, int flags, int i
 		}
 		else
 		{
-			static int munmap_internal(void *addr, size_t length);
 			munmap_internal(addr, length);
 		}
 	}
@@ -1415,7 +1416,7 @@ int mm_munmap(void *addr, size_t length)
 	return 0;
 }
 
-DEFINE_SYSCALL(mmap, void *, addr, size_t, length, int, prot, int, flags, int, fd, off_t, offset)
+DEFINE_SYSCALL6(mmap, void *, addr, size_t, length, int, prot, int, flags, int, fd, off_t, offset)
 {
 	/* TODO: We should mark NOACCESS for VirtualAlloc()-ed but currently unused pages */
 	log_info("mmap(%p, %p, %x, %x, %d, %p)", addr, length, prot, flags, fd, offset);
@@ -1429,7 +1430,7 @@ DEFINE_SYSCALL(mmap, void *, addr, size_t, length, int, prot, int, flags, int, f
 	return r;
 }
 
-DEFINE_SYSCALL(oldmmap, void *, _args)
+DEFINE_SYSCALL1(oldmmap, void *, _args)
 {
 	log_info("oldmmap(%p)", _args);
 	struct oldmmap_args_t
@@ -1441,11 +1442,11 @@ DEFINE_SYSCALL(oldmmap, void *, _args)
 		unsigned long fd;
 		unsigned long offset;
 	};
-	struct oldmmap_args_t *args = _args;
+	struct oldmmap_args_t *args = (struct oldmmap_args_t*)_args;
 	return sys_mmap(args->addr, args->len, args->prot, args->flags, args->fd, args->offset);
 }
 
-DEFINE_SYSCALL(mmap2, void *, addr, size_t, length, int, prot, int, flags, int, fd, off_t, offset)
+DEFINE_SYSCALL6(mmap2, void *, addr, size_t, length, int, prot, int, flags, int, fd, off_t, offset)
 {
 	log_info("mmap2(%p, %p, %x, %x, %d, %p)", addr, length, prot, flags, fd, offset);
 	struct file *f = vfs_get(fd);
@@ -1455,13 +1456,13 @@ DEFINE_SYSCALL(mmap2, void *, addr, size_t, length, int, prot, int, flags, int, 
 	return r;
 }
 
-DEFINE_SYSCALL(munmap, void *, addr, size_t, length)
+DEFINE_SYSCALL2(munmap, void *, addr, size_t, length)
 {
 	log_info("munmap(%p, %p)", addr, length);
 	return mm_munmap(addr, length);
 }
 
-DEFINE_SYSCALL(mprotect, void *, addr, size_t, length, int, prot)
+DEFINE_SYSCALL3(mprotect, void *, addr, size_t, length, int, prot)
 {
 	log_info("mprotect(%p, %p, %x)", addr, length, prot);
 	int r = 0;
@@ -1550,7 +1551,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(msync, void *, addr, size_t, len, int, flags)
+DEFINE_SYSCALL3(msync, void *, addr, size_t, len, int, flags)
 {
 	log_info("msync(0x%p, 0x%p, %d)", addr, len, flags);
 	log_error("msync() not implemented.");
@@ -1593,7 +1594,7 @@ static int mm_populate_internal(const void *addr, size_t len)
 					size_t first_page = max(range_start, GET_FIRST_PAGE_OF_BLOCK(i));
 					size_t last_page = min(range_end, GET_LAST_PAGE_OF_BLOCK(i));
 					map_entry_range(e, first_page, last_page);
-					if (e->prot != PROT_READ | PROT_WRITE | PROT_EXEC)
+					if (e->prot != (PROT_READ | PROT_WRITE | PROT_EXEC))
 					{
 						DWORD oldProtect;
 						VirtualProtect(GET_PAGE_ADDRESS(first_page), (last_page - first_page + 1) * PAGE_SIZE, prot_linux2win(e->prot), &oldProtect);
@@ -1618,7 +1619,7 @@ void mm_populate(void *addr)
 	ReleaseSRWLockExclusive(&mm->rw_lock);
 }
 
-DEFINE_SYSCALL(mlock, const void *, addr, size_t, len)
+DEFINE_SYSCALL2(mlock, const void *, addr, size_t, len)
 {
 	log_info("mlock(0x%p, 0x%p)", addr, len);
 	int r = 0;
@@ -1648,7 +1649,7 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL(munlock, const void *, addr, size_t, len)
+DEFINE_SYSCALL2(munlock, const void *, addr, size_t, len)
 {
 	log_info("munlock(0x%p, 0x%p)", addr, len);
 	if (!IS_ALIGNED(addr, PAGE_SIZE))
@@ -1661,14 +1662,14 @@ DEFINE_SYSCALL(munlock, const void *, addr, size_t, len)
 	return 0;
 }
 
-DEFINE_SYSCALL(mremap, void *, old_address, size_t, old_size, size_t, new_size, int, flags, void *, new_address)
+DEFINE_SYSCALL5(mremap, void *, old_address, size_t, old_size, size_t, new_size, int, flags, void *, new_address)
 {
 	log_info("mremap(old_address=%p, old_size=%p, new_size=%p, flags=%x, new_address=%p)", old_address, old_size, new_size, flags, new_address);
 	log_error("mremap() not implemented.");
 	return -L_ENOSYS;
 }
 
-DEFINE_SYSCALL(madvise, void *, addr, size_t, length, int, advise)
+DEFINE_SYSCALL3(madvise, void *, addr, size_t, length, int, advise)
 {
 	log_info("madvise(%p, %p, %x)", addr, length, advise);
 	/* Notes behaviour-changing advices, other non-critical advises are ignored for now */
@@ -1677,7 +1678,7 @@ DEFINE_SYSCALL(madvise, void *, addr, size_t, length, int, advise)
 	return 0;
 }
 
-DEFINE_SYSCALL(brk, void *, addr)
+DEFINE_SYSCALL1(brk, void *, addr)
 {
 	void* orig_addr = addr;
 	log_info("brk(%p)", addr);
@@ -1685,7 +1686,7 @@ DEFINE_SYSCALL(brk, void *, addr)
 	AcquireSRWLockExclusive(&mm->rw_lock);
 	size_t brk = ALIGN_TO_PAGE(mm->brk);
 	addr = (void*)ALIGN_TO_PAGE(addr);
-	if (addr > 0 && addr < mm->brk)
+	if (addr != 0 && addr < mm->brk)
 	{
 		if (munmap_internal(addr, (size_t)brk - (size_t)addr) < 0)
 		{

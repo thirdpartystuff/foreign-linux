@@ -46,7 +46,7 @@ struct eventfd_file
 	int efd_flags;
 };
 
-static const struct file_ops eventfd_ops;
+extern const struct file_ops eventfd_ops;
 
 int eventfd_alloc(struct file **eventfdfile, uint64_t count, int flags)
 {
@@ -56,7 +56,7 @@ int eventfd_alloc(struct file **eventfdfile, uint64_t count, int flags)
 		return -L_EINVAL;
 	}
 
-	struct eventfd_file *efd = kmalloc(sizeof(struct eventfd_file));
+	struct eventfd_file *efd = (struct eventfd_file*)kmalloc(sizeof(struct eventfd_file));
 	file_init(&efd->efd_base_file, &eventfd_ops, O_RDWR);
 
 	SECURITY_ATTRIBUTES attrs;
@@ -71,7 +71,7 @@ int eventfd_alloc(struct file **eventfdfile, uint64_t count, int flags)
 		return -L_ENOMEM;
 	}
 
-	efd->efd_value = MapViewOfFile(efd->efd_handle, FILE_MAP_ALL_ACCESS, 0, 0, 8);
+	efd->efd_value = (uint64_t*)MapViewOfFile(efd->efd_handle, FILE_MAP_ALL_ACCESS, 0, 0, 8);
 	if (efd->efd_value == NULL)
 	{
 		log_error("eventfd: Can't map handle: %u", GetLastError());
@@ -140,10 +140,10 @@ static void eventfd_after_fork_child(struct file *f)
 
 	log_info("eventfd: after_fork_child");
 
-	efd->efd_value = MapViewOfFile(efd->efd_handle, FILE_MAP_ALL_ACCESS, 0, 0, 8);
+	efd->efd_value = (uint64_t*)MapViewOfFile(efd->efd_handle, FILE_MAP_ALL_ACCESS, 0, 0, 8);
 }
 
-static size_t eventfd_read(struct file *f, void *buf, size_t count)
+static ssize_t eventfd_read(struct file *f, void *buf, size_t count)
 {
 	struct eventfd_file *efd = (struct eventfd_file *)f;
 
@@ -183,7 +183,7 @@ static size_t eventfd_read(struct file *f, void *buf, size_t count)
 	return 8;
 }
 
-static size_t eventfd_write(struct file *f, const void *buf, size_t count)
+static ssize_t eventfd_write(struct file *f, const void *buf, size_t count)
 {
 	struct eventfd_file *efd = (struct eventfd_file *)f;
 

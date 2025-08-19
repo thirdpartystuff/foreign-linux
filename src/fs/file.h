@@ -53,11 +53,11 @@ struct file_ops
 	/* General file operations */
 	int (*close)(struct file *f);
 	int (*getpath)(struct file *f, char *buf);
-	size_t (*read)(struct file *f, void *buf, size_t count);
-	size_t (*write)(struct file *f, const void *buf, size_t count);
-	size_t (*pread)(struct file *f, void *buf, size_t count, loff_t offset);
-	size_t (*pwrite)(struct file *f, const void *buf, size_t count, loff_t offset);
-	size_t (*readlink)(struct file *f, char *buf, size_t bufsize);
+	ssize_t (*read)(struct file *f, void *buf, size_t count);
+	ssize_t (*write)(struct file *f, const void *buf, size_t count);
+	ssize_t (*pread)(struct file *f, void *buf, size_t count, loff_t offset);
+	ssize_t (*pwrite)(struct file *f, const void *buf, size_t count, loff_t offset);
+	ssize_t (*readlink)(struct file *f, char *buf, size_t bufsize);
 	int (*truncate)(struct file *f, loff_t length);
 	int (*fsync)(struct file *f);
 	int (*llseek)(struct file *f, loff_t offset, loff_t *newoffset, int whence);
@@ -73,13 +73,13 @@ struct file_ops
 	int (*accept4)(struct file *f, struct sockaddr *addr, int *addrlen, int flags);
 	int (*getsockname)(struct file *f, struct sockaddr *addr, int *addrlen);
 	int (*getpeername)(struct file *f, struct sockaddr *addr, int *addrlen);
-	size_t (*sendto)(struct file *f, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, int addrlen);
-	size_t (*recvfrom)(struct file *f, void *buf, size_t len, int flags, struct sockaddr *src_addr, int *addrlen);
+	ssize_t (*sendto)(struct file *f, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, int addrlen);
+	ssize_t (*recvfrom)(struct file *f, void *buf, size_t len, int flags, struct sockaddr *src_addr, int *addrlen);
 	int (*shutdown)(struct file *f, int how);
 	int (*setsockopt)(struct file *f, int level, int optname, const void *optval, int optlen);
 	int (*getsockopt)(struct file *f, int level, int optname, void *optval, int *optlen);
-	size_t (*sendmsg)(struct file *f, const struct msghdr *msg, int flags);
-	size_t (*recvmsg)(struct file *f, struct msghdr *msg, int flags);
+	ssize_t (*sendmsg)(struct file *f, const struct msghdr *msg, int flags);
+	ssize_t (*recvmsg)(struct file *f, struct msghdr *msg, int flags);
 	int (*sendmmsg)(struct file *f, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags);
 	int (*recvmmsg)(struct file *f, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags, struct timespec *timeout);
 };

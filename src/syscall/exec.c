@@ -75,7 +75,7 @@ static char pht_storage[MAX_PHT_STORAGE];
 static void run(struct binfmt *binary, int argc, char *argv[], int env_size, char *envp[])
 {
 	/* Generate initial stack */
-	char *stack_base = process_get_stack_base();
+	char *stack_base = (char*)process_get_stack_base();
 	char *stack = stack_base + STACK_SIZE;
 	/* 16 random bytes for AT_RANDOM */
 	/* TODO: Fill in real content */
@@ -91,8 +91,8 @@ static void run(struct binfmt *binary, int argc, char *argv[], int env_size, cha
 	AUX_VEC(AT_RANDOM, random_bytes);
 	AUX_VEC(AT_PAGESZ, PAGE_SIZE);
 	AUX_VEC(AT_PHDR, executable->load_base + executable->eh.e_phoff);
-	AUX_VEC(AT_PHENT, executable->eh.e_phentsize);
-	AUX_VEC(AT_PHNUM, executable->eh.e_phnum);
+	AUX_VEC(AT_PHENT, (size_t)executable->eh.e_phentsize);
+	AUX_VEC(AT_PHNUM, (size_t)executable->eh.e_phnum);
 	if (executable->eh.e_type == ET_DYN)
 		AUX_VEC(AT_ENTRY, executable->load_base + executable->eh.e_entry);
 	else
@@ -424,7 +424,7 @@ static char *flip_startup_base()
 	}
 }
 
-DEFINE_SYSCALL(execve, const char *, filename, char **, argv, char **, envp)
+DEFINE_SYSCALL3(execve, const char *, filename, char **, argv, char **, envp)
 {
 	/* TODO: Deal with argv/envp == NULL */
 	/* TODO: Don't destroy things on failure */

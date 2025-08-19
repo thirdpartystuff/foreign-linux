@@ -417,7 +417,7 @@ static pid_t process_wait(pid_t pid, int *status, int options, struct rusage *ru
 	return pid;
 }
 
-DEFINE_SYSCALL(waitpid, pid_t, pid, int *, status, int, options)
+DEFINE_SYSCALL3(waitpid, pid_t, pid, int *, status, int, options)
 {
 	log_info("sys_waitpid(%d, %p, %d)", pid, status, options);
 	AcquireSRWLockShared(&process->rw_lock);
@@ -426,7 +426,7 @@ DEFINE_SYSCALL(waitpid, pid_t, pid, int *, status, int, options)
 	return r;
 }
 
-DEFINE_SYSCALL(wait4, pid_t, pid, int *, status, int, options, struct rusage *, rusage)
+DEFINE_SYSCALL4(wait4, pid_t, pid, int *, status, int, options, struct rusage *, rusage)
 {
 	log_info("sys_wait4(%d, %p, %d, %p)", pid, status, options, rusage);
 	if (rusage)
@@ -485,7 +485,7 @@ pid_t process_get_pid()
 	return process->pid;
 }
 
-DEFINE_SYSCALL(getpid)
+DEFINE_SYSCALL0(getpid)
 {
 	log_info("getpid(): %d", process->pid);
 	return process->pid;
@@ -496,14 +496,14 @@ pid_t process_get_ppid(pid_t pid)
 	return process_shared->processes[process->pid].ppid;
 }
 
-DEFINE_SYSCALL(getppid)
+DEFINE_SYSCALL0(getppid)
 {
 	pid_t ppid = process_shared->processes[process->pid].ppid;
 	log_info("getppid(): %d", ppid);
 	return ppid;
 }
 
-DEFINE_SYSCALL(setpgid, pid_t, pid, pid_t, pgid)
+DEFINE_SYSCALL2(setpgid, pid_t, pid, pid_t, pgid)
 {
 	log_info("setpgid(%d, %d)", pid, pgid);
 	return 0;
@@ -541,20 +541,20 @@ pid_t process_get_pgid(pid_t pid)
 	return pgid;
 }
 
-DEFINE_SYSCALL(getpgid, pid_t, pid)
+DEFINE_SYSCALL1(getpgid, pid_t, pid)
 {
 	pid_t pgid = process_get_pgid(pid);
 	log_info("getpgid(%d): %d", pid, pgid);
 	return pgid;
 }
 
-DEFINE_SYSCALL(getpgrp)
+DEFINE_SYSCALL0(getpgrp)
 {
 	log_info("getpgrp()");
 	return sys_getpgid(process->pid);
 }
 
-DEFINE_SYSCALL(gettid)
+DEFINE_SYSCALL0(gettid)
 {
 	log_info("gettid(): %d", process->pid);
 	return process->pid;
@@ -565,7 +565,7 @@ pid_t process_get_sid()
 	return process_shared->processes[process->pid].sid;
 }
 
-DEFINE_SYSCALL(getsid)
+DEFINE_SYSCALL0(getsid)
 {
 	pid_t sid = process_shared->processes[process->pid].sid;
 	log_info("getsid(): %d", sid);
@@ -606,7 +606,7 @@ int process_get_stat(char *buf)
 	buf += ksprintf(buf, "%c ", state);
 	buf += ksprintf(buf, "%d ", process_get_ppid(process->pid));
 	buf += ksprintf(buf, "%d ", process_get_pgid(process->pid));
-	buf += ksprintf(buf, "%d ", process_get_sid(process->pid));
+	buf += ksprintf(buf, "%d ", process_get_sid());
 	buf += ksprintf(buf, "%d ", tty_nr);
 	buf += ksprintf(buf, "%d ", tpgid);
 	buf += ksprintf(buf, "%u ", flags);
@@ -720,55 +720,55 @@ int process_query_pid(int pid, int query_type, char *buf)
 	}
 }
 
-DEFINE_SYSCALL(setsid)
+DEFINE_SYSCALL0(setsid)
 {
 	log_info("setsid().");
 	log_error("setsid() not implemented.");
 	return 0;
 }
 
-DEFINE_SYSCALL(getuid)
+DEFINE_SYSCALL0(getuid)
 {
 	log_info("getuid(): %d", 0);
 	return 0;
 }
 
-DEFINE_SYSCALL(setgid, gid_t, gid)
+DEFINE_SYSCALL1(setgid, gid_t, gid)
 {
 	log_info("setgid(%d)", gid);
 	return 0;
 }
 
-DEFINE_SYSCALL(getgid)
+DEFINE_SYSCALL0(getgid)
 {
 	log_info("getgid(): %d", 0);
 	return 0;
 }
 
-DEFINE_SYSCALL(geteuid)
+DEFINE_SYSCALL0(geteuid)
 {
 	log_info("geteuid(): %d", 0);
 	return 0;
 }
 
-DEFINE_SYSCALL(getegid)
+DEFINE_SYSCALL0(getegid)
 {
 	log_info("getegid(): %d", 0);
 	return 0;
 }
 
-DEFINE_SYSCALL(setuid, uid_t, uid)
+DEFINE_SYSCALL1(setuid, uid_t, uid)
 {
 	log_info("setuid(%d)", uid);
 	return 0;
 }
 
-DEFINE_SYSCALL(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
+DEFINE_SYSCALL3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 {
 	log_info("setresuid(%d, %d, %d)", ruid, euid, suid);
 	return 0;
 }
-DEFINE_SYSCALL(getresuid, uid_t *, ruid, uid_t *, euid, uid_t *, suid)
+DEFINE_SYSCALL3(getresuid, uid_t *, ruid, uid_t *, euid, uid_t *, suid)
 {
 	log_info("getresuid(%d, %d, %d)", ruid, euid, suid);
 	if (!mm_check_write(ruid, sizeof(*ruid)) || !mm_check_write(euid, sizeof(*euid)) || !mm_check_write(suid, sizeof(*suid)))
@@ -779,12 +779,12 @@ DEFINE_SYSCALL(getresuid, uid_t *, ruid, uid_t *, euid, uid_t *, suid)
 	return 0;
 }
 
-DEFINE_SYSCALL(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
+DEFINE_SYSCALL3(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
 {
 	log_info("setresgid(%d, %d, %d)", rgid, egid, sgid);
 	return 0;
 }
-DEFINE_SYSCALL(getresgid, uid_t *, rgid, gid_t *, egid, gid_t *, sgid)
+DEFINE_SYSCALL3(getresgid, uid_t *, rgid, gid_t *, egid, gid_t *, sgid)
 {
 	log_info("getresgid(%d, %d, %d)", rgid, egid, sgid);
 	if (!mm_check_write(rgid, sizeof(*rgid)) || !mm_check_write(egid, sizeof(*egid)) || !mm_check_write(sgid, sizeof(*sgid)))
@@ -794,27 +794,27 @@ DEFINE_SYSCALL(getresgid, uid_t *, rgid, gid_t *, egid, gid_t *, sgid)
 	*sgid = 0;
 	return 0;
 }
-DEFINE_SYSCALL(getgroups, int, size, gid_t *, list)
+DEFINE_SYSCALL2(getgroups, int, size, gid_t *, list)
 {
 	log_info("getgroups()");
 	return 0;
 }
 
-DEFINE_SYSCALL(exit, int, status)
+DEFINE_SYSCALL1(exit, int, status)
 {
 	log_info("exit(%d)", status);
 	log_shutdown();
 	thread_exit(status, 0);
 }
 
-DEFINE_SYSCALL(exit_group, int, status)
+DEFINE_SYSCALL1(exit_group, int, status)
 {
 	log_info("exit_group(%d)", status);
 	log_shutdown();
 	process_exit(status, 0);
 }
 
-DEFINE_SYSCALL(uname, struct utsname *, buf)
+DEFINE_SYSCALL1(uname, struct utsname *, buf)
 {
 	log_info("sys_uname(%p)", buf);
 	if (!mm_check_write(buf, sizeof(struct utsname)))
@@ -833,7 +833,7 @@ DEFINE_SYSCALL(uname, struct utsname *, buf)
 	return 0;
 }
 
-DEFINE_SYSCALL(olduname, struct old_utsname *, buf)
+DEFINE_SYSCALL1(olduname, struct old_utsname *, buf)
 {
 	if (!mm_check_write(buf, sizeof(struct old_utsname)))
 		return -L_EFAULT;
@@ -847,7 +847,7 @@ DEFINE_SYSCALL(olduname, struct old_utsname *, buf)
 	return 0;
 }
 
-DEFINE_SYSCALL(oldolduname, struct oldold_utsname *, buf)
+DEFINE_SYSCALL1(oldolduname, struct oldold_utsname *, buf)
 {
 	if (!mm_check_write(buf, sizeof(struct oldold_utsname)))
 		return -L_EFAULT;
@@ -861,7 +861,7 @@ DEFINE_SYSCALL(oldolduname, struct oldold_utsname *, buf)
 	return 0;
 }
 
-DEFINE_SYSCALL(sysinfo, struct sysinfo *, info)
+DEFINE_SYSCALL1(sysinfo, struct sysinfo *, info)
 {
 	log_info("sysinfo(%p)", info);
 	if (!mm_check_write(info, sizeof(*info)))
@@ -921,7 +921,7 @@ static int do_prlimit64(pid_t pid, int resource, const struct rlimit64 *new_limi
 	return 0;
 }
 
-DEFINE_SYSCALL(getrlimit, int, resource, struct rlimit *, rlim)
+DEFINE_SYSCALL2(getrlimit, int, resource, struct rlimit *, rlim)
 {
 	log_info("getrlimit(%d, %p)", resource, rlim);
 	if (!mm_check_write(rlim, sizeof(struct rlimit)))
@@ -936,7 +936,7 @@ DEFINE_SYSCALL(getrlimit, int, resource, struct rlimit *, rlim)
 	return 0;
 }
 
-DEFINE_SYSCALL(setrlimit, int, resource, const struct rlimit *, rlim)
+DEFINE_SYSCALL2(setrlimit, int, resource, const struct rlimit *, rlim)
 {
 	log_info("setrlimit(%d, %p)", resource, rlim);
 	if (!mm_check_read(rlim, sizeof(struct rlimit)))
@@ -947,7 +947,7 @@ DEFINE_SYSCALL(setrlimit, int, resource, const struct rlimit *, rlim)
 	return do_prlimit64(0, resource, &new_limit, NULL);
 }
 
-DEFINE_SYSCALL(getrusage, int, who, struct rusage *, usage)
+DEFINE_SYSCALL2(getrusage, int, who, struct rusage *, usage)
 {
 	log_info("getrusage(%d, %p)", who, usage);
 	if (!mm_check_write(usage, sizeof(struct rusage)))
@@ -961,42 +961,42 @@ DEFINE_SYSCALL(getrusage, int, who, struct rusage *, usage)
 	}
 }
 
-DEFINE_SYSCALL(getpriority, int, which, int, who)
+DEFINE_SYSCALL2(getpriority, int, which, int, who)
 {
 	log_info("getpriority(which=%d, who=%d)", which, who);
 	log_error("getpriority() not implemented. Fake returning 0.");
 	return 0;
 }
 
-DEFINE_SYSCALL(setpriority, int, which, int, who, int, prio)
+DEFINE_SYSCALL3(setpriority, int, which, int, who, int, prio)
 {
 	log_info("setpriority(which=%d, who=%d, prio=%d)", which, who, prio);
 	log_error("setpriority() not implemented. Fake returning 0.");
 	return 0;
 }
 
-DEFINE_SYSCALL(prctl, int, option, uintptr_t, arg2, uintptr_t, arg3, uintptr_t, arg4, uintptr_t, arg5)
+DEFINE_SYSCALL5(prctl, int, option, uintptr_t, arg2, uintptr_t, arg3, uintptr_t, arg4, uintptr_t, arg5)
 {
 	log_info("prctl(%d)", option);
 	log_error("prctl() not implemented.");
 	return 0;
 }
 
-DEFINE_SYSCALL(capget, void *, header, void *, data)
+DEFINE_SYSCALL2(capget, void *, header, void *, data)
 {
 	log_info("capget(%p, %p)", header, data);
 	log_error("capget() not implemented.");
 	return 0;
 }
 
-DEFINE_SYSCALL(capset, void *, header, const void *, data)
+DEFINE_SYSCALL2(capset, void *, header, const void *, data)
 {
 	log_info("capset(%p, %p)", header, data);
 	log_error("capset() not implemented.");
 	return 0;
 }
 
-DEFINE_SYSCALL(prlimit64, pid_t, pid, int, resource, const struct rlimit64 *, new_limit, struct rlimit64 *, old_limit)
+DEFINE_SYSCALL4(prlimit64, pid_t, pid, int, resource, const struct rlimit64 *, new_limit, struct rlimit64 *, old_limit)
 {
 	log_info("prlimit64(pid=%d, resource=%d, new_limit=%p, old_limit=%p)", pid, resource, new_limit, old_limit);
 	if (new_limit && !mm_check_read(new_limit, sizeof(struct rlimit64)))
@@ -1007,7 +1007,7 @@ DEFINE_SYSCALL(prlimit64, pid_t, pid, int, resource, const struct rlimit64 *, ne
 	return 0;
 }
 
-DEFINE_SYSCALL(getcpu, unsigned int *, cpu, unsigned int *, node, void *, tcache)
+DEFINE_SYSCALL3(getcpu, unsigned int *, cpu, unsigned int *, node, void *, tcache)
 {
 	log_info("getcpu(%p, %p, %p)", cpu, node, tcache);
 	if (cpu)
@@ -1017,14 +1017,14 @@ DEFINE_SYSCALL(getcpu, unsigned int *, cpu, unsigned int *, node, void *, tcache
 	return 0;
 }
 
-DEFINE_SYSCALL(sched_yield)
+DEFINE_SYSCALL0(sched_yield)
 {
 	log_info("sched_yield()");
 	SwitchToThread();
 	return 0;
 }
 
-DEFINE_SYSCALL(sched_getaffinity, pid_t, pid, size_t, cpusetsize, uint8_t *, mask)
+DEFINE_SYSCALL3(sched_getaffinity, pid_t, pid, size_t, cpusetsize, uint8_t *, mask)
 {
 	log_info("sched_getaffinity(%d, %d, %p)", pid, cpusetsize, mask);
 	if (pid != 0)
@@ -1054,7 +1054,7 @@ DEFINE_SYSCALL(sched_getaffinity, pid_t, pid, size_t, cpusetsize, uint8_t *, mas
 	return sizeof(uintptr_t);
 }
 
-DEFINE_SYSCALL(set_tid_address, int *, tidptr)
+DEFINE_SYSCALL1(set_tid_address, int *, tidptr)
 {
 	log_info("set_tid_address(tidptr=%p)", tidptr);
 	log_error("clear_child_tid not supported.");

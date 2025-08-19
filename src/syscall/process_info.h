@@ -76,7 +76,7 @@ struct process_data
 	/* pid of this process */
 	pid_t pid;
 	/* Information of threads of this process */
-	int thread_count;
+	LONG thread_count;
 	struct list thread_list, thread_freelist;
 	struct thread threads[MAX_PROCESS_COUNT];
 	/* Information of child processes */

@@ -1,15 +1,36 @@
 cmake_minimum_required(VERSION 3.31)
 project(flinux C ASM_MASM)
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SAFESEH:NO /DYNAMICBASE:NO")
+add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
 
-add_compile_options(
-     "$<$<CONFIG:Debug>:/Zi>"
-     "$<$<CONFIG:Debug>:/MTd>"
-     "$<$<CONFIG:RelWithDebInfo>:/MT>"
-     "$<$<CONFIG:Release>:/MT>"
-     "$<$<CONFIG:MinSizeRel>:/MD>"
-     )
+if(MSVC)
+    add_compile_options(
+         "$<$<CONFIG:Debug>:/Zi>"
+         "$<$<CONFIG:Debug>:/MTd>"
+         "$<$<CONFIG:RelWithDebInfo>:/MT>"
+         "$<$<CONFIG:Release>:/MT>"
+         "$<$<CONFIG:MinSizeRel>:/MD>"
+         )
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SAFESEH:NO /DYNAMICBASE:NO")
+else()
+    set(CMAKE_ASM_MASM_COMPILE_OPTIONS_MSVC_DEBUG_INFORMATION_FORMAT_Embedded "")
+    set(CMAKE_C_FLAGS_DEBUG "")
+    foreach(flag
+        -Wno-writable-strings
+        -Wno-microsoft-goto
+        -Wno-microsoft-cast
+        -Wno-invalid-noreturn
+        )
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${flag}")
+    endforeach()
+    set_source_files_properties(
+            "src/dbt/x86_trampoline.asm"
+            "src/syscall/stubs.asm"
+        PROPERTIES COMPILE_OPTIONS
+            "-nologo;-coff;-9;-Gd"
+        )
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,/SAFESEH:NO -Wl,/DYNAMICBASE:NO")
+endif()
 
 include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
@@ -147,12 +168,29 @@ add_executable(flinux
     "src/vsscanf.c"
     "src/wcwidth.c"
     "src/win7compat.c"
+    "src/rc/flinux.rc"
     "src/dbt/x86_trampoline.asm"
     "src/syscall/stubs.asm"
-    "src/rc/flinux.rc"
     )
 
-target_link_libraries(flinux ntdll
-    debug libcmtd
-    optimized libcmt
+set_directory_properties(
+    PROPERTIES
+        VS_STARTUP_PROJECT flinux
     )
+
+target_link_libraries(flinux
+    "${CMAKE_CURRENT_SOURCE_DIR}/lib/ntdll.lib"
+    ws2_32
+    winmm
+    )
+
+if(MSVC)
+    target_link_libraries(flinux
+        debug libcmtd
+        optimized libcmt
+        )
+else()
+    target_compile_options(flinux PRIVATE
+        "$<$<COMPILE_LANGUAGE:C>:-xc++>"
+        )
+endif()

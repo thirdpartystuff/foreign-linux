@@ -164,6 +164,8 @@ struct virtualfs_custom
 
 int virtualfs_get_poll_status_inout(struct file *f); /* get_poll_status: Always POLLIN | POLLOUT */
 
+void virtualfs_init_custom(void *f, struct virtualfs_desc *desc);
+
 /* For custom file */
 void virtualfs_custom_init(void *file, struct virtualfs_desc *desc);
 int virtualfs_custom_stat(struct file *f, struct newstat *buf);

@@ -45,9 +45,11 @@ struct tls_data
 
 static struct tls_data *tls;
 
+static int tls_slot_to_offset(int slot);
+
 void tls_init()
 {
-	tls = mm_static_alloc(sizeof(struct tls_data));
+	tls = (struct tls_data*)mm_static_alloc(sizeof(struct tls_data));
 	InitializeSRWLock(&tls->rw_lock);
 	for (int i = 0; i < TLS_KERNEL_ENTRY_COUNT; i++)
 	{
@@ -92,7 +94,7 @@ int tls_fork(HANDLE process)
 void tls_afterfork_child()
 {
 	log_info("Restoring TLS context...");
-	tls = mm_static_alloc(sizeof(struct tls_data));
+	tls = (struct tls_data*)mm_static_alloc(sizeof(struct tls_data));
 	InitializeSRWLock(&tls->rw_lock);
 	for (int i = 0; i < tls->entry_count; i++)
 	{
@@ -170,12 +172,12 @@ int tls_set_thread_area(struct user_desc *u_info)
 	return ret;
 }
 
-DEFINE_SYSCALL(set_thread_area, struct user_desc *, u_info)
+DEFINE_SYSCALL1(set_thread_area, struct user_desc *, u_info)
 {
 	return tls_set_thread_area(u_info);
 }
 
-DEFINE_SYSCALL(arch_prctl, int, code, uintptr_t, addr)
+DEFINE_SYSCALL2(arch_prctl, int, code, uintptr_t, addr)
 {
 	log_info("arch_prctl(%d, 0x%p)", code, addr);
 	switch (code)

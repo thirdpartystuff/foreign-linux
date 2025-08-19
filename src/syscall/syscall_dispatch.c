@@ -47,11 +47,12 @@ static syscall_fn* syscall_table[SYSCALL_COUNT] =
 typedef int syscall_fn(int ebx, int ecx, int edx, int esi, int edi, int ebp, PCONTEXT context);
 
 #define SYSCALL_COUNT 359
-#define SYSCALL(name) extern int sys_##name(int ebx, int ecx, int edx, int esi, int edi, int ebp, PCONTEXT context);
+#define SYSCALL(name) EXTERN_C int sys_##name(int ebx, int ecx, int edx, int esi, int edi, int ebp, PCONTEXT context);
 #include "syscall_table_x86.h"
 #undef SYSCALL
 
 #define SYSCALL(name) sys_##name,
+EXTERN_C syscall_fn* syscall_table[SYSCALL_COUNT];
 syscall_fn* syscall_table[SYSCALL_COUNT] =
 {
 	SYSCALL(unimplemented) /* syscall 0 */
@@ -60,6 +61,7 @@ syscall_fn* syscall_table[SYSCALL_COUNT] =
 #undef SYSCALL
 #endif
 
+EXTERN_C void sys_unimplemented_imp(intptr_t id);
 void sys_unimplemented_imp(intptr_t id)
 {
 	log_error("FATAL: Unimplemented syscall: %d", id);

@@ -194,7 +194,7 @@ bool shared_fork(HANDLE process)
 			status = NtMapViewOfSection(
 				shared->shared_heap_mapped_pools[current_pool].handle,
 				process,
-				&shared->shared_heap_mapped_pools[current_pool].addr,
+				(PVOID*)&shared->shared_heap_mapped_pools[current_pool].addr,
 				0,
 				SHARED_HEAP_POOL_SIZE,
 				NULL,

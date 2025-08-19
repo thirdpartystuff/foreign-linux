@@ -70,9 +70,9 @@ void mm_dump_memory_mappings();
 int mm_get_maps(char *buf);
 
 /* Check if the memory region is compatible with desired access */
-int mm_check_read(const void *addr, size_t size);
-int mm_check_read_string(const char *addr);
-int mm_check_write(void *addr, size_t size);
+EXTERN_C int mm_check_read(const void *addr, size_t size);
+EXTERN_C int mm_check_read_string(const char *addr);
+EXTERN_C int mm_check_write(void *addr, size_t size);
 
 int mm_handle_page_fault(void *addr, bool is_write);
 int mm_fork(HANDLE process);

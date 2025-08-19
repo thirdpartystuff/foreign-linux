@@ -85,25 +85,25 @@ static int inotify_init1(int flags)
 	return fd;
 }
 
-DEFINE_SYSCALL(inotify_init)
+DEFINE_SYSCALL0(inotify_init)
 {
 	log_info("inotify_init()");
 	return inotify_init1(0);
 }
 
-DEFINE_SYSCALL(inotify_init1, int, flags)
+DEFINE_SYSCALL1(inotify_init1, int, flags)
 {
 	log_info("inotify_init1(%d)", flags);
 	return inotify_init1(flags);
 }
 
-DEFINE_SYSCALL(inotify_add_watch, int, fd, const char *, pathname, uint32_t, mask)
+DEFINE_SYSCALL3(inotify_add_watch, int, fd, const char *, pathname, uint32_t, mask)
 {
 	log_info("inotify_add_watch(%d, \"%s\", %x)", fd, pathname, mask);
 	return 0;
 }
 
-DEFINE_SYSCALL(inotify_rm_watch, int, fd, int, wd)
+DEFINE_SYSCALL2(inotify_rm_watch, int, fd, int, wd)
 {
 	log_info("inotify_rm_watch(%d, %d)", fd, wd);
 	return 0;

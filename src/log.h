@@ -35,9 +35,11 @@ extern int logger_attached;
 
 #ifdef _DEBUG
 
+void log_assert_internal(const char *format, ...);
+
 #define LOG_ASSERT_EXIT   127
 #define log_assert_format "Assertion expression `%s` failed in function %s, at file %s: %d.\n"
-#define log_assert(exp) do { if (logger_attached && !exp) log_assert_internal(log_assert_format, #exp, __FUNCTION__, __FILE__, __LINE__); } while (0)
+#define log_assert(exp) do { if (logger_attached && !(exp)) log_assert_internal(log_assert_format, #exp, __FUNCTION__, __FILE__, __LINE__); } while (0)
 
 #else
 

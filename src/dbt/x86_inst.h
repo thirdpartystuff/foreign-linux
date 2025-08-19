@@ -290,10 +290,10 @@ struct instruction_desc
 #define HANDLER_CPUID			0x0D
 #define HANDLER_X87				0x0E /* TODO */
 
-const struct instruction_desc one_byte_inst[256];
-const struct instruction_desc two_byte_inst[256];
-const struct instruction_desc three_byte_inst_0x38[256];
-const struct instruction_desc three_byte_inst_0x3A[256];
+extern const struct instruction_desc one_byte_inst[256];
+extern const struct instruction_desc two_byte_inst[256];
+extern const struct instruction_desc three_byte_inst_0x38[256];
+extern const struct instruction_desc three_byte_inst_0x3A[256];
 
 int get_imm_bytes(uint8_t op, bool opsize_prefix_present, bool addrsize_prefix_present);
 uint8_t get_implicit_register_usage(uint8_t op, uint8_t opcode);

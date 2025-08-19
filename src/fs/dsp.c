@@ -123,14 +123,14 @@ static int dsp_close(struct file *f)
 	return 0;
 }
 
-static int dsp_read(struct file *f, void *buf, size_t count)
+static ssize_t dsp_read(struct file *f, void *buf, size_t count)
 {
 	/* TODO */
 	log_error("/dev/dsp read not supported.");
 	return 0;
 }
 
-static int dsp_write(struct file *f, const void *buf, size_t count)
+static ssize_t dsp_write(struct file *f, const void *buf, size_t count)
 {
 	ssize_t r = 0;
 	AcquireSRWLockExclusive(&f->rw_lock);
@@ -154,7 +154,7 @@ static int dsp_write(struct file *f, const void *buf, size_t count)
 		dsp->current_buffer = 0;
 		for (int i = 0; i < DSP_BUFFER_COUNT; i++)
 		{
-			dsp->buffer[i].hdr.lpData = VirtualAlloc(NULL, dsp->buffer_size, MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE);
+			dsp->buffer[i].hdr.lpData = (LPSTR)VirtualAlloc(NULL, dsp->buffer_size, MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE);
 			dsp->buffer[i].hdr.dwBufferLength = dsp->buffer_size;
 			dsp->buffer[i].hdr.dwBytesRecorded = 0;
 			dsp->buffer[i].hdr.dwUser = 0;
@@ -312,7 +312,7 @@ static struct file *dsp_alloc()
 {
 	struct dsp_file *f = (struct dsp_file *)kmalloc(sizeof(struct dsp_file));
 	file_init(&f->custom_file.base_file, &dsp_ops, O_LARGEFILE | O_RDWR);
-	virtualfs_init_custom(f, &dsp_desc);
+	virtualfs_init_custom(f, (struct virtualfs_desc*)&dsp_desc);
 	f->waveout = NULL;
 	SECURITY_ATTRIBUTES attr;
 	attr.nLength = sizeof(SECURITY_ATTRIBUTES);

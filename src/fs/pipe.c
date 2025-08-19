@@ -132,7 +132,7 @@ static void pipe_update_events(struct pipe_file *pipe)
 	}
 }
 
-static size_t pipe_read(struct file *f, void *buf, size_t count)
+static ssize_t pipe_read(struct file *f, void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct pipe_file *pipe = (struct pipe_file *)f;
@@ -151,7 +151,7 @@ static size_t pipe_read(struct file *f, void *buf, size_t count)
 			goto out;
 		}
 	}
-	size_t num_read;
+	DWORD num_read;
 	if (!ReadFile(pipe->handle, buf, count, &num_read, NULL))
 	{
 		if (GetLastError() == ERROR_BROKEN_PIPE)
@@ -170,7 +170,7 @@ out:
 	return r;
 }
 
-static size_t pipe_write(struct file *f, const void *buf, size_t count)
+static ssize_t pipe_write(struct file *f, const void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct pipe_file *pipe = (struct pipe_file *)f;
@@ -212,7 +212,7 @@ static size_t pipe_write(struct file *f, const void *buf, size_t count)
 			goto out;
 		}
 	}
-	size_t num_written;
+	DWORD num_written;
 	if (!WriteFile(pipe->handle, buf, count, &num_written, NULL))
 	{
 		if (GetLastError() == ERROR_BROKEN_PIPE)

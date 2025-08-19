@@ -717,7 +717,7 @@ static void erase_screen(int mode)
 		return;
 	}
 	DWORD num_written;
-	FillConsoleOutputAttribute(console->out, get_text_attribute(console), count, start, &num_written);
+	FillConsoleOutputAttribute(console->out, get_text_attribute(), count, start, &num_written);
 	FillConsoleOutputCharacterW(console->out, L' ', count, start, &num_written);
 }
 
@@ -753,7 +753,7 @@ static void erase_line(int mode)
 		return;
 	}
 	DWORD num_written;
-	FillConsoleOutputAttribute(console->out, get_text_attribute(console), count, start, &num_written);
+	FillConsoleOutputAttribute(console->out, get_text_attribute(), count, start, &num_written);
 	FillConsoleOutputCharacterW(console->out, L' ', count, start, &num_written);
 }
 
@@ -1094,7 +1094,7 @@ static void control_escape_csi(char ch)
 			}
 		}
 		/* Set updated text attribute */
-		SetConsoleTextAttribute(console->out, get_text_attribute(console));
+		SetConsoleTextAttribute(console->out, get_text_attribute());
 		console->processor = NULL;
 		break;
 
@@ -1150,7 +1150,7 @@ static void control_escape_osc(char ch)
 		if (console->params[0] == 0 || console->params[0] == 2) /* Change window title (and icon name) */
 		{
 			WCHAR title[MAX_STRING + 1];
-			int r = utf8_to_utf16(console->string_buffer, console->string_len, title, MAX_STRING + 1);
+			int r = utf8_to_utf16(console->string_buffer, console->string_len, (uint16_t*)title, MAX_STRING + 1);
 			if (r < 0)
 			{
 				log_error("Invalid UTF-8 sequence.");
@@ -1278,7 +1278,7 @@ static void control_escape(char ch)
 	}
 }
 
-static void console_buffer_add_string(char *buf, size_t *bytes_read, size_t *count, char *str, size_t size)
+static void console_buffer_add_string(char *buf, ssize_t *bytes_read, size_t *count, char *str, size_t size)
 {
 	while (*count > 0 && size > 0)
 	{
@@ -1332,13 +1332,13 @@ static int console_close(struct file *f)
 	return 0;
 }
 
-static size_t console_file_read(struct file *f, void *b, size_t count)
+static ssize_t console_file_read(struct file *f, void *b, size_t count)
 {
 	char *buf = (char *)b;
 	console_lock();
 	console_retrieve_state();
 
-	size_t bytes_read = 0;
+	ssize_t bytes_read = 0;
 	while (console->input_buffer_head != console->input_buffer_tail && count > 0)
 	{
 		count--;
@@ -1449,27 +1449,27 @@ static size_t console_file_read(struct file *f, void *b, size_t count)
 				switch (ir.Event.KeyEvent.wVirtualKeyCode)
 				{
 				case VK_UP:
-					console_buffer_add_string(buf, &bytes_read, &count, console->cursor_key_mode ? "\x1BOA" : "\x1B[A", 3);
+					console_buffer_add_string(buf, &bytes_read, &count, (char*)(console->cursor_key_mode ? "\x1BOA" : "\x1B[A"), 3);
 					break;
 
 				case VK_DOWN:
-					console_buffer_add_string(buf, &bytes_read, &count, console->cursor_key_mode ? "\x1BOB" : "\x1B[B", 3);
+					console_buffer_add_string(buf, &bytes_read, &count, (char*)(console->cursor_key_mode ? "\x1BOB" : "\x1B[B"), 3);
 					break;
 
 				case VK_RIGHT:
-					console_buffer_add_string(buf, &bytes_read, &count, console->cursor_key_mode ? "\x1BOC" : "\x1B[C", 3);
+					console_buffer_add_string(buf, &bytes_read, &count, (char*)(console->cursor_key_mode ? "\x1BOC" : "\x1B[C"), 3);
 					break;
 
 				case VK_LEFT:
-					console_buffer_add_string(buf, &bytes_read, &count, console->cursor_key_mode ? "\x1BOD" : "\x1B[D", 3);
+					console_buffer_add_string(buf, &bytes_read, &count, (char*)(console->cursor_key_mode ? "\x1BOD" : "\x1B[D"), 3);
 					break;
 
 				case VK_HOME:
-					console_buffer_add_string(buf, &bytes_read, &count, console->cursor_key_mode ? "\x1BOH" : "\x1B[H", 3);
+					console_buffer_add_string(buf, &bytes_read, &count, (char*)(console->cursor_key_mode ? "\x1BOH" : "\x1B[H"), 3);
 					break;
 
 				case VK_END:
-					console_buffer_add_string(buf, &bytes_read, &count, console->cursor_key_mode ? "\x1BOF" : "\x1B[F", 3);
+					console_buffer_add_string(buf, &bytes_read, &count, (char*)(console->cursor_key_mode ? "\x1BOF" : "\x1B[F"), 3);
 					break;
 
 				case VK_INSERT: console_buffer_add_string(buf, &bytes_read, &count, "\x1B[2~", 4); break;
@@ -1532,12 +1532,12 @@ read_done:
 	return bytes_read;
 }
 
-size_t console_read(void *b, size_t count)
+ssize_t console_read(void *b, size_t count)
 {
 	return console_file_read(NULL, b, count);
 }
 
-static size_t console_file_write(struct file *f, const void *b, size_t count)
+static ssize_t console_file_write(struct file *f, const void *b, size_t count)
 {
 	const char *buf = (const char *)b;
 	console_lock();
@@ -1623,7 +1623,7 @@ static size_t console_file_write(struct file *f, const void *b, size_t count)
 	return count;
 }
 
-size_t console_write(const void *buf, size_t b)
+ssize_t console_write(const void *buf, size_t b)
 {
 	return console_file_write(NULL, buf, b);
 }
@@ -1722,6 +1722,6 @@ struct file *console_alloc()
 {
 	struct console_file *f = (struct console_file *)kmalloc(sizeof(struct console_file));
 	file_init(&f->custom_file.base_file, &console_ops, O_LARGEFILE | O_RDWR);
-	virtualfs_init_custom(f, &console_desc);
+	virtualfs_init_custom(f, (struct virtualfs_desc*)&console_desc);
 	return (struct file *)f;
 }

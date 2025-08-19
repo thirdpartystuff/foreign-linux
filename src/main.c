@@ -26,6 +26,7 @@
 #include <syscall/sig.h>
 #include <syscall/tls.h>
 #include <syscall/vfs.h>
+#include <syscall/syscall.h>
 #include <flags.h>
 #include <log.h>
 #include <heap.h>
@@ -114,7 +115,7 @@ static void init_subsystems()
 		envbuf += sizeof(x); \
 	} while (0)
 
-void main()
+int main()
 {
 	win7compat_init();
 	log_init();
@@ -134,7 +135,7 @@ void main()
 		process_exit(1, 0);
 	}
 
-	startup = mm_mmap(NULL, BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS,
+	startup = (char*)mm_mmap(NULL, BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_ANONYMOUS,
 		INTERNAL_MAP_TOPDOWN | INTERNAL_MAP_NORESET | INTERNAL_MAP_VIRTUALALLOC, NULL, 0);
 	*(uintptr_t*) startup = 1;
 	char *current_startup_base = startup + sizeof(uintptr_t);

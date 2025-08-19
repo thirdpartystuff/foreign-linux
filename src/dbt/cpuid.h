@@ -31,5 +31,5 @@ struct cpuid_t
 };
 
 /* Singature used in dbt trampoline */
-void dbt_cpuid(int eax, int ecx, struct cpuid_t *cpuid);
+EXTERN_C void dbt_cpuid(int eax, int ecx, struct cpuid_t *cpuid);
 int dbt_get_cpuinfo(char *buf);

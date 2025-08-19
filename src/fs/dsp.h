@@ -21,4 +21,4 @@
 
 #include <fs/virtual.h>
 
-struct virtualfs_custom_desc dsp_desc;
+extern struct virtualfs_custom_desc dsp_desc;

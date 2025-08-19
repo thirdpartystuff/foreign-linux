@@ -35,7 +35,7 @@ static int kisspace(unsigned char ch)
 	{													\
 		utype value = 0;								\
 		bool neg = false;								\
-		if (IS_SIGNED(type) & *buf == '-')				\
+		if (IS_SIGNED(type) && *buf == '-')				\
 		{												\
 			neg = true;									\
 			buf++;										\

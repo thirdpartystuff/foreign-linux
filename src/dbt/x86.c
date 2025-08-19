@@ -34,6 +34,17 @@
 #include <ntdll.h>
 #include <immintrin.h>
 
+#ifdef __clang__
+static __forceinline void __writefsdword(unsigned long offset, unsigned long value)
+{
+    __asm__ __volatile__(
+        "movl %0, %%fs:%1"
+        :
+        : "r"(value), "m"(*(uint32_t*)offset)
+        );
+}
+#endif
+
 #define GET_MODRM_MOD(c)	(((c) >> 6) & 7)
 #define GET_MODRM_R(c)		(((c) >> 3) & 7)
 #define GET_MODRM_RM(c)		((c) & 7)
@@ -133,17 +144,23 @@ static uint8_t __forceinline parse_byte(uint8_t **code)
 
 static uint16_t __forceinline parse_word(uint8_t **code)
 {
-	return *((uint16_t*)*code)++;
+    uint16_t v = *(uint16_t*)*code;
+    *code += 2;
+    return v;
 }
 
 static uint32_t __forceinline parse_dword(uint8_t **code)
 {
-	return *((uint32_t*)*code)++;
+    uint32_t v = *(uint32_t*)*code;
+    *code += 4;
+    return v;
 }
 
 static uint64_t __forceinline parse_qword(uint8_t **code)
 {
-	return *((uint64_t*)*code)++;
+    uint64_t v = *(uint64_t*)*code;
+    *code += 8;
+    return v;
 }
 
 static int32_t __forceinline parse_rel(uint8_t **code, int rel_bytes)
@@ -528,12 +545,12 @@ struct dbt_data
 	bool signal_need_fixup;
 };
 
-extern void dbt_find_direct_internal();
-extern void dbt_find_indirect_internal();
-extern void dbt_sieve_fallback();
+EXTERN_C void dbt_find_direct_internal();
+EXTERN_C void dbt_find_indirect_internal();
+EXTERN_C void dbt_sieve_fallback();
 
-extern void dbt_cpuid_internal();
-extern void syscall_handler();
+EXTERN_C void dbt_cpuid_internal();
+EXTERN_C void syscall_handler();
 
 static __declspec(thread, align(16)) char dbt_simd_state[512];
 
@@ -558,6 +575,7 @@ static __declspec(thread) bool dbt_flushed;
  * The return address is stored in TLS and set up in kernel code
  * This enables us to do efficient return address patching on receipt of signals
  */
+EXTERN_C void *dbt_return_trampoline;
 void *dbt_return_trampoline;
 static void dbt_gen_return_trampoline(void *buffer)
 {
@@ -762,10 +780,10 @@ static void dbt_gen_tables()
 
 void dbt_init_thread()
 {
-	dbt = VirtualAlloc(NULL, sizeof(struct dbt_data), MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE);
-	if (!(dbt->blocks = VirtualAlloc(NULL, DBT_BLOCKS_TABLE_SIZE, MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE)))
+	dbt = (struct dbt_data*)VirtualAlloc(NULL, sizeof(struct dbt_data), MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE);
+	if (!(dbt->blocks = (struct dbt_block*)VirtualAlloc(NULL, DBT_BLOCKS_TABLE_SIZE, MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE)))
 		log_error("VirtualAlloc() for dbt_blocks failed.");
-	if (!(dbt->code_cache = VirtualAlloc(NULL, DBT_CACHE_SIZE, MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE)))
+	if (!(dbt->code_cache = (uint8_t*)VirtualAlloc(NULL, DBT_CACHE_SIZE, MEM_RESERVE | MEM_COMMIT | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE)))
 		log_error("VirtualAlloc() for dbt_cache failed.");
 	dbt_gen_tables();
 	__writefsdword(dbt_global->tls_dbt_offset, (DWORD)dbt);
@@ -2000,11 +2018,13 @@ static uint8_t *dbt_find(size_t pc)
 	return block->start;
 }
 
+EXTERN_C void dbt_find_next(size_t pc);
 void dbt_find_next(size_t pc)
 {
 	dbt_set_return_addr(pc, (size_t)dbt_find(pc));
 }
 
+EXTERN_C void dbt_find_next_sieve(size_t pc);
 void dbt_find_next_sieve(size_t pc)
 {
 	uint8_t *target = dbt_find(pc);
@@ -2036,6 +2056,7 @@ void dbt_find_next_sieve(size_t pc)
 	dbt_set_return_addr(pc, (size_t)target);
 }
 
+EXTERN_C void dbt_find_direct(size_t pc, size_t patch_addr);
 void dbt_find_direct(size_t pc, size_t patch_addr)
 {
 	/* Translate or generate the block */

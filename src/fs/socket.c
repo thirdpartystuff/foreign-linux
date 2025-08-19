@@ -183,7 +183,7 @@ void socket_init()
 struct socket_file_shared
 {
 	int af, type;
-	int events, connect_error;
+	LONG events, connect_error;
 };
 
 struct socket_file
@@ -283,7 +283,7 @@ static int socket_wait_event(struct socket_file *f, int event, int flags)
 	} while (1);
 }
 
-static int socket_sendto_unsafe(struct socket_file *f, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, int addrlen)
+static ssize_t socket_sendto_unsafe(struct socket_file *f, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, int addrlen)
 {
 	if (flags & ~LINUX_MSG_DONTWAIT)
 		log_error("flags (0x%x) contains unsupported bits.", flags);
@@ -296,10 +296,10 @@ static int socket_sendto_unsafe(struct socket_file *f, const void *buf, size_t l
 	}
 	else
 		dest_addr = NULL;
-	int r;
+	ssize_t r;
 	while ((r = socket_wait_event(f, FD_WRITE, flags)) == 0)
 	{
-		r = sendto(f->socket, buf, len, 0, dest_addr, addrlen);
+		r = sendto(f->socket, (const char*)buf, len, 0, dest_addr, addrlen);
 		if (r != SOCKET_ERROR)
 			break;
 		int err = WSAGetLastError();
@@ -321,13 +321,13 @@ static int socket_sendmsg_unsafe(struct socket_file *f, const struct msghdr *msg
 	for (int i = 0; i < msg->msg_iovlen; i++)
 	{
 		buffers[i].len = msg->msg_iov[i].iov_len;
-		buffers[i].buf = msg->msg_iov[i].iov_base;
+		buffers[i].buf = (CHAR*)msg->msg_iov[i].iov_base;
 	}
 	struct sockaddr_storage addr_storage;
 	WSAMSG wsamsg;
 	if (msg->msg_namelen)
 	{
-		if ((wsamsg.namelen = translate_socket_addr_to_winsock(msg->msg_name, &addr_storage, msg->msg_namelen)) == SOCKET_ERROR)
+		if ((wsamsg.namelen = translate_socket_addr_to_winsock((const struct sockaddr_storage*)msg->msg_name, &addr_storage, msg->msg_namelen)) == SOCKET_ERROR)
 			return -L_EINVAL;
 		wsamsg.name = (LPSOCKADDR)&addr_storage;
 	}
@@ -338,11 +338,11 @@ static int socket_sendmsg_unsafe(struct socket_file *f, const struct msghdr *msg
 	}
 	wsamsg.lpBuffers = buffers;
 	wsamsg.dwBufferCount = msg->msg_iovlen;
-	wsamsg.Control.buf = msg->msg_control;
+	wsamsg.Control.buf = (CHAR*)msg->msg_control;
 	wsamsg.Control.len = msg->msg_controllen;
 	wsamsg.dwFlags = 0;
 	
-	int r;
+	DWORD r;
 	while ((r = socket_wait_event(f, FD_WRITE, flags)) == 0)
 	{
 		if (WSASendMsg(f->socket, &wsamsg, 0, &r, NULL, NULL) != SOCKET_ERROR)
@@ -358,18 +358,18 @@ static int socket_sendmsg_unsafe(struct socket_file *f, const struct msghdr *msg
 	return r;
 }
 
-static int socket_recvfrom_unsafe(struct socket_file *f, void *buf, size_t len, int flags, struct sockaddr *src_addr, int *addrlen)
+static ssize_t socket_recvfrom_unsafe(struct socket_file *f, void *buf, size_t len, int flags, struct sockaddr *src_addr, int *addrlen)
 {
 	if (flags & ~(LINUX_MSG_PEEK | LINUX_MSG_DONTWAIT))
 		log_error("flags (0x%x) contains unsupported bits.", flags);
 	struct sockaddr_storage addr_storage;
 	int addr_storage_len = sizeof(struct sockaddr_storage);
-	int r;
+	ssize_t r;
 	while ((r = socket_wait_event(f, FD_READ | FD_CLOSE, flags)) == 0)
 	{
 		if (!(flags & LINUX_MSG_PEEK))
 			InterlockedAnd(&f->shared->events, ~FD_READ);
-		r = recvfrom(f->socket, buf, len, flags, (struct sockaddr *)&addr_storage, &addr_storage_len);
+		r = recvfrom(f->socket, (char*)buf, len, flags, (struct sockaddr *)&addr_storage, &addr_storage_len);
 		if (r != SOCKET_ERROR)
 			break;
 		int err = WSAGetLastError();
@@ -389,7 +389,7 @@ static int socket_recvfrom_unsafe(struct socket_file *f, void *buf, size_t len, 
 	return r;
 }
 
-static int socket_recvmsg_unsafe(struct socket_file *f, struct msghdr *msg, int flags)
+static ssize_t socket_recvmsg_unsafe(struct socket_file *f, struct msghdr *msg, int flags)
 {
 	if (flags & ~LINUX_MSG_DONTWAIT)
 		log_error("socket_sendmsg(): flags (0x%x) contains unsupported bits.", flags);
@@ -405,7 +405,7 @@ static int socket_recvmsg_unsafe(struct socket_file *f, struct msghdr *msg, int 
 		 */
 		msg->msg_controllen = 0;
 		msg->msg_flags = 0; /* TODO */
-		return socket_recvfrom_unsafe(f, msg->msg_iov[0].iov_base, msg->msg_iov[0].iov_len, flags, msg->msg_name, &msg->msg_namelen);
+		return socket_recvfrom_unsafe(f, msg->msg_iov[0].iov_base, msg->msg_iov[0].iov_len, flags, (struct sockaddr*)msg->msg_name, &msg->msg_namelen);
 	}
 
 	typedef int(*PFNWSARECVMSG)(
@@ -431,7 +431,7 @@ static int socket_recvmsg_unsafe(struct socket_file *f, struct msghdr *msg, int 
 	for (int i = 0; i < msg->msg_iovlen; i++)
 	{
 		buffers[i].len = msg->msg_iov[i].iov_len;
-		buffers[i].buf = msg->msg_iov[i].iov_base;
+		buffers[i].buf = (CHAR*)msg->msg_iov[i].iov_base;
 	}
 	struct sockaddr_storage addr_storage;
 	int addr_storage_len = sizeof(struct sockaddr_storage);
@@ -440,11 +440,11 @@ static int socket_recvmsg_unsafe(struct socket_file *f, struct msghdr *msg, int 
 	wsamsg.namelen = addr_storage_len;
 	wsamsg.lpBuffers = buffers;
 	wsamsg.dwBufferCount = msg->msg_iovlen;
-	wsamsg.Control.buf = msg->msg_control;
+	wsamsg.Control.buf = (CHAR*)msg->msg_control;
 	wsamsg.Control.len = msg->msg_controllen;
 	wsamsg.dwFlags = 0;
 
-	int r;
+	DWORD r;
 	while ((r = socket_wait_event(f, FD_READ | FD_CLOSE, flags)) == 0)
 	{
 		if (WSARecvMsg(f->socket, &wsamsg, &r, NULL, NULL) != SOCKET_ERROR)
@@ -481,20 +481,20 @@ static int socket_close(struct file *f)
 	return 0;
 }
 
-static size_t socket_read(struct file *f, char *buf, size_t count)
+static ssize_t socket_read(struct file *f, void *buf, size_t count)
 {
 	struct socket_file *socket_file = (struct socket_file *) f;
 	WaitForSingleObject(socket_file->mutex, INFINITE);
-	int r = socket_recvfrom_unsafe(socket_file, buf, count, 0, NULL, 0);
+	ssize_t r = socket_recvfrom_unsafe(socket_file, buf, count, 0, NULL, 0);
 	ReleaseMutex(socket_file->mutex);
 	return r;
 }
 
-static size_t socket_write(struct file *f, const char *buf, size_t count)
+static ssize_t socket_write(struct file *f, const void *buf, size_t count)
 {
 	struct socket_file *socket_file = (struct socket_file *) f;
 	WaitForSingleObject(socket_file->mutex, INFINITE);
-	int r = socket_sendto_unsafe(socket_file, buf, count, 0, NULL, 0);
+	ssize_t r = socket_sendto_unsafe(socket_file, buf, count, 0, NULL, 0);
 	ReleaseMutex(socket_file->mutex);
 	return r;
 }
@@ -580,7 +580,7 @@ static int mm_check_write_msghdr(struct msghdr *msg)
 	return 1;
 }
 
-static const struct file_ops socket_ops;
+extern const struct file_ops socket_ops;
 static int socket_open(int domain, int type, int protocol)
 {
 	/* Translation constants to their Windows counterparts */
@@ -972,20 +972,20 @@ out:
 	return r;
 }
 
-static size_t socket_sendto(struct file *f, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, int addrlen)
+static ssize_t socket_sendto(struct file *f, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, int addrlen)
 {
 	struct socket_file *socket = (struct socket_file *)f;
 	WaitForSingleObject(socket->mutex, INFINITE);
-	int r = socket_sendto_unsafe(socket, buf, len, flags, dest_addr, addrlen);
+	ssize_t r = socket_sendto_unsafe(socket, buf, len, flags, dest_addr, addrlen);
 	ReleaseMutex(socket->mutex);
 	return r;
 }
 
-static size_t socket_recvfrom(struct file *f, void *buf, size_t len, int flags, struct sockaddr *src_addr, int *addrlen)
+static ssize_t socket_recvfrom(struct file *f, void *buf, size_t len, int flags, struct sockaddr *src_addr, int *addrlen)
 {
 	struct socket_file *socket = (struct socket_file *)f;
 	WaitForSingleObject(socket->mutex, INFINITE);
-	int r = socket_recvfrom_unsafe(socket, buf, len, flags, src_addr, addrlen);
+	ssize_t r = socket_recvfrom_unsafe(socket, buf, len, flags, src_addr, addrlen);
 	ReleaseMutex(socket->mutex);
 	return r;
 }
@@ -1086,7 +1086,7 @@ get_set_sockopt:
 	/* The default case */
 	if (call == SYS_SETSOCKOPT)
 	{
-		if (setsockopt(f->socket, level, optname, set_optval, set_optlen) == SOCKET_ERROR)
+		if (setsockopt(f->socket, level, optname, (const char*)set_optval, set_optlen) == SOCKET_ERROR)
 		{
 			log_warning("setsockopt() failed, error code: %d", WSAGetLastError());
 			return translate_socket_error(WSAGetLastError());
@@ -1095,7 +1095,7 @@ get_set_sockopt:
 	}
 	else
 	{
-		if (getsockopt(f->socket, level, optname, get_optval, get_optlen) == SOCKET_ERROR)
+		if (getsockopt(f->socket, level, optname, (char*)get_optval, get_optlen) == SOCKET_ERROR)
 		{
 			log_warning("getsockopt() failed, error code: %d", WSAGetLastError());
 			return translate_socket_error(WSAGetLastError());
@@ -1207,7 +1207,7 @@ static const struct file_ops socket_ops =
 	.sendmmsg = socket_sendmmsg,
 };
 
-DEFINE_SYSCALL(socket, int, domain, int, type, int, protocol)
+DEFINE_SYSCALL3(socket, int, domain, int, type, int, protocol)
 {
 	log_info("socket(domain=%d, type=0%o, protocol=%d)", domain, type, protocol);
 	int fd = socket_open(domain, type, protocol);
@@ -1216,7 +1216,7 @@ DEFINE_SYSCALL(socket, int, domain, int, type, int, protocol)
 	return fd;
 }
 
-DEFINE_SYSCALL(bind, int, sockfd, const struct sockaddr *, addr, int, addrlen)
+DEFINE_SYSCALL3(bind, int, sockfd, const struct sockaddr *, addr, int, addrlen)
 {
 	log_info("bind(%p, %d)", addr, addrlen);
 	if (!mm_check_read(addr, sizeof(struct sockaddr)))
@@ -1236,7 +1236,7 @@ DEFINE_SYSCALL(bind, int, sockfd, const struct sockaddr *, addr, int, addrlen)
 	return r;
 }
 
-DEFINE_SYSCALL(connect, int, sockfd, const struct sockaddr *, addr, size_t, addrlen)
+DEFINE_SYSCALL3(connect, int, sockfd, const struct sockaddr *, addr, size_t, addrlen)
 {
 	log_info("connect(%d, %p, %d)", sockfd, addr, addrlen);
 	if (!mm_check_read(addr, sizeof(struct sockaddr)))
@@ -1256,7 +1256,7 @@ DEFINE_SYSCALL(connect, int, sockfd, const struct sockaddr *, addr, size_t, addr
 	return r;
 }
 
-DEFINE_SYSCALL(listen, int, sockfd, int, backlog)
+DEFINE_SYSCALL2(listen, int, sockfd, int, backlog)
 {
 	log_info("listen(%d, %d)", sockfd, backlog);
 	struct file *f = vfs_get(sockfd);
@@ -1274,7 +1274,7 @@ DEFINE_SYSCALL(listen, int, sockfd, int, backlog)
 	return r;
 }
 
-DEFINE_SYSCALL(accept, int, sockfd, struct sockaddr *, addr, int *, addrlen)
+DEFINE_SYSCALL3(accept, int, sockfd, struct sockaddr *, addr, int *, addrlen)
 {
 	log_info("accept(%d, %p, %p)", sockfd, addr, addrlen);
 	if (addr && !mm_check_write(addr, sizeof(struct sockaddr)))
@@ -1296,7 +1296,7 @@ DEFINE_SYSCALL(accept, int, sockfd, struct sockaddr *, addr, int *, addrlen)
 	return r;
 }
 
-DEFINE_SYSCALL(getsockname, int, sockfd, struct sockaddr *, addr, int *, addrlen)
+DEFINE_SYSCALL3(getsockname, int, sockfd, struct sockaddr *, addr, int *, addrlen)
 {
 	log_info("getsockname(%d, %p, %p)", sockfd, addr, addrlen);
 	if (!mm_check_write(addrlen, sizeof(*addrlen)))
@@ -1318,7 +1318,7 @@ DEFINE_SYSCALL(getsockname, int, sockfd, struct sockaddr *, addr, int *, addrlen
 	return r;
 }
 
-DEFINE_SYSCALL(getpeername, int, sockfd, struct sockaddr *, addr, int *, addrlen)
+DEFINE_SYSCALL3(getpeername, int, sockfd, struct sockaddr *, addr, int *, addrlen)
 {
 	log_info("getpeername(%d, %p, %p)", sockfd, addr, addrlen);
 	if (!mm_check_write(addrlen, sizeof(*addrlen)))
@@ -1340,7 +1340,7 @@ DEFINE_SYSCALL(getpeername, int, sockfd, struct sockaddr *, addr, int *, addrlen
 	return r;
 }
 
-DEFINE_SYSCALL(send, int, sockfd, const void *, buf, size_t, len, int, flags)
+DEFINE_SYSCALL4(send, int, sockfd, const void *, buf, size_t, len, int, flags)
 {
 	log_info("send(%d, %p, %d, %x)", sockfd, buf, len, flags);
 	if (!mm_check_read(buf, len))
@@ -1348,7 +1348,7 @@ DEFINE_SYSCALL(send, int, sockfd, const void *, buf, size_t, len, int, flags)
 	struct file *f = vfs_get(sockfd);
 	if (!f)
 		return -L_EBADF;
-	int r;
+	ssize_t r;
 	if (!f->op_vtable->sendto)
 	{
 		log_error("send() not implemented.");
@@ -1360,7 +1360,7 @@ DEFINE_SYSCALL(send, int, sockfd, const void *, buf, size_t, len, int, flags)
 	return r;
 }
 
-DEFINE_SYSCALL(recv, int, sockfd, void *, buf, size_t, len, int, flags)
+DEFINE_SYSCALL4(recv, int, sockfd, void *, buf, size_t, len, int, flags)
 {
 	log_info("recv(%d, %p, %d, %x)", sockfd, buf, len, flags);
 	if (!mm_check_write(buf, len))
@@ -1368,7 +1368,7 @@ DEFINE_SYSCALL(recv, int, sockfd, void *, buf, size_t, len, int, flags)
 	struct file *f = vfs_get(sockfd);
 	if (!f)
 		return -L_EBADF;
-	int r;
+	ssize_t r;
 	if (!f->op_vtable->recvfrom)
 	{
 		log_error("recv() not implemented.");
@@ -1380,7 +1380,7 @@ DEFINE_SYSCALL(recv, int, sockfd, void *, buf, size_t, len, int, flags)
 	return r;
 }
 
-DEFINE_SYSCALL(sendto, int, sockfd, const void *, buf, size_t, len, int, flags, const struct sockaddr *, dest_addr, int, addrlen)
+DEFINE_SYSCALL6(sendto, int, sockfd, const void *, buf, size_t, len, int, flags, const struct sockaddr *, dest_addr, int, addrlen)
 {
 	log_info("sendto(%d, %p, %d, %x, %p, %d)", sockfd, buf, len, flags, dest_addr, addrlen);
 	if (!mm_check_read(buf, len))
@@ -1390,7 +1390,7 @@ DEFINE_SYSCALL(sendto, int, sockfd, const void *, buf, size_t, len, int, flags, 
 	struct file *f = vfs_get(sockfd);
 	if (!f)
 		return -L_EBADF;
-	int r;
+	ssize_t r;
 	if (!f->op_vtable->sendto)
 	{
 		log_error("sendto() not implemented.");
@@ -1402,7 +1402,7 @@ DEFINE_SYSCALL(sendto, int, sockfd, const void *, buf, size_t, len, int, flags, 
 	return r;
 }
 
-DEFINE_SYSCALL(recvfrom, int, sockfd, void *, buf, size_t, len, int, flags, struct sockaddr *, src_addr, int *, addrlen)
+DEFINE_SYSCALL6(recvfrom, int, sockfd, void *, buf, size_t, len, int, flags, struct sockaddr *, src_addr, int *, addrlen)
 {
 	log_info("recvfrom(%d, %p, %d, %x, %p, %p)", sockfd, buf, len, flags, src_addr, addrlen);
 	if (!mm_check_write(buf, len))
@@ -1417,7 +1417,7 @@ DEFINE_SYSCALL(recvfrom, int, sockfd, void *, buf, size_t, len, int, flags, stru
 	struct file *f = vfs_get(sockfd);
 	if (!f)
 		return -L_EBADF;
-	int r;
+	ssize_t r;
 	if (!f->op_vtable->recvfrom)
 	{
 		log_error("recvfrom() not implemented.");
@@ -1429,7 +1429,7 @@ DEFINE_SYSCALL(recvfrom, int, sockfd, void *, buf, size_t, len, int, flags, stru
 	return r;
 }
 
-DEFINE_SYSCALL(shutdown, int, sockfd, int, how)
+DEFINE_SYSCALL2(shutdown, int, sockfd, int, how)
 {
 	log_info("shutdown(%d, %d)", sockfd, how);
 	struct file *f = vfs_get(sockfd);
@@ -1447,7 +1447,7 @@ DEFINE_SYSCALL(shutdown, int, sockfd, int, how)
 	return r;
 }
 
-DEFINE_SYSCALL(setsockopt, int, sockfd, int, level, int, optname, const void *, optval, int, optlen)
+DEFINE_SYSCALL5(setsockopt, int, sockfd, int, level, int, optname, const void *, optval, int, optlen)
 {
 	log_info("setsockopt(%d, %d, %d, %p, %d)", sockfd, level, optname, optval, optlen);
 	if (optval && !mm_check_read(optval, optlen))
@@ -1467,7 +1467,7 @@ DEFINE_SYSCALL(setsockopt, int, sockfd, int, level, int, optname, const void *, 
 	return r;
 }
 
-DEFINE_SYSCALL(getsockopt, int, sockfd, int, level, int, optname, void *, optval, int *, optlen)
+DEFINE_SYSCALL5(getsockopt, int, sockfd, int, level, int, optname, void *, optval, int *, optlen)
 {
 	log_info("getsockopt(%d, %d, %d, %p, %p)", sockfd, level, optname, optval, optlen);
 	if (optlen && !mm_check_write(optlen, sizeof(*optlen)))
@@ -1489,7 +1489,7 @@ DEFINE_SYSCALL(getsockopt, int, sockfd, int, level, int, optname, void *, optval
 	return r;
 }
 
-DEFINE_SYSCALL(sendmsg, int, sockfd, const struct msghdr *, msg, int, flags)
+DEFINE_SYSCALL3(sendmsg, int, sockfd, const struct msghdr *, msg, int, flags)
 {
 	log_info("sendmsg(%d, %p, %x)", sockfd, msg, flags);
 	if (!mm_check_read_msghdr(msg))
@@ -1509,7 +1509,7 @@ DEFINE_SYSCALL(sendmsg, int, sockfd, const struct msghdr *, msg, int, flags)
 	return r;
 }
 
-DEFINE_SYSCALL(recvmsg, int, sockfd, struct msghdr *, msg, int, flags)
+DEFINE_SYSCALL3(recvmsg, int, sockfd, struct msghdr *, msg, int, flags)
 {
 	log_info("recvmsg(%d, %p, %x)", sockfd, msg, flags);
 	if (!mm_check_write_msghdr(msg))
@@ -1529,7 +1529,7 @@ DEFINE_SYSCALL(recvmsg, int, sockfd, struct msghdr *, msg, int, flags)
 	return r;
 }
 
-DEFINE_SYSCALL(accept4, int, sockfd, struct sockaddr *, addr, int *, addrlen, int, flags)
+DEFINE_SYSCALL4(accept4, int, sockfd, struct sockaddr *, addr, int *, addrlen, int, flags)
 {
 	log_info("accept4(%d, %p, %p, %d)", sockfd, addr, addrlen, flags);
 	if (addr && !mm_check_write(addr, sizeof(struct sockaddr)))
@@ -1551,7 +1551,7 @@ DEFINE_SYSCALL(accept4, int, sockfd, struct sockaddr *, addr, int *, addrlen, in
 	return r;
 }
 
-DEFINE_SYSCALL(sendmmsg, int, sockfd, struct mmsghdr *, msgvec, unsigned int, vlen, unsigned int, flags)
+DEFINE_SYSCALL4(sendmmsg, int, sockfd, struct mmsghdr *, msgvec, unsigned int, vlen, unsigned int, flags)
 {
 	log_info("sendmmsg(sockfd=%d, msgvec=%p, vlen=%d, flags=%d)", sockfd, msgvec, vlen, flags);
 	for (int i = 0; i < vlen; i++)
@@ -1584,7 +1584,7 @@ static const unsigned char nargs[21] = {
 	AL(4), AL(5), AL(4)
 };
 
-DEFINE_SYSCALL(socketcall, int, call, uintptr_t *, args)
+DEFINE_SYSCALL2(socketcall, int, call, uintptr_t *, args)
 {
 	if (call < 1 || call > SYS_SENDMMSG)
 		return -L_EINVAL;

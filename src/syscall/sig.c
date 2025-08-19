@@ -268,9 +268,9 @@ static DWORD WINAPI signal_thread(LPVOID parameter)
 	}
 }
 
-void fpu_fxsave(void *save_area);
-void fpu_fxrstor(void *save_area);
-void signal_restorer();
+EXTERN_C void fpu_fxsave(void *save_area);
+EXTERN_C void fpu_fxrstor(void *save_area);
+EXTERN_C void signal_restorer();
 static void signal_save_sigcontext(struct sigcontext *sc, struct syscall_context *context, void *fpstate, uint32_t mask)
 {
 	/* TODO: Add missing register values */
@@ -401,7 +401,7 @@ static void send_pending_signal()
 	}
 }
 
-DEFINE_SYSCALL(rt_sigreturn, uintptr_t, bx, uintptr_t, cx, uintptr_t, dx, uintptr_t, si, uintptr_t, di,
+DEFINE_SYSCALL8(rt_sigreturn, uintptr_t, bx, uintptr_t, cx, uintptr_t, dx, uintptr_t, si, uintptr_t, di,
 	uintptr_t, bp, uintptr_t, sp, uintptr_t, ip)
 {
 	struct rt_sigframe *frame = (struct rt_sigframe *)(sp - sizeof(uintptr_t));
@@ -443,7 +443,7 @@ static void signal_init_private()
 void signal_init()
 {
 	/* Initialize signal structures */
-	signal = mm_static_alloc(sizeof(struct signal_data));
+	signal = (struct signal_data*)mm_static_alloc(sizeof(struct signal_data));
 	signal_reset();
 	signal_init_private();
 }
@@ -461,7 +461,7 @@ void signal_reset()
 
 void signal_afterfork_child()
 {
-	signal = mm_static_alloc(sizeof(struct signal_data));
+	signal = (struct signal_data*)mm_static_alloc(sizeof(struct signal_data));
 	signal_init_private();
 }
 
@@ -595,14 +595,14 @@ int signal_query(DWORD win_pid, HANDLE sigwrite, HANDLE query_mutex, int query_t
 		return len;
 }
 
-DEFINE_SYSCALL(alarm, unsigned int, seconds)
+DEFINE_SYSCALL1(alarm, unsigned int, seconds)
 {
 	log_info("alarm(%d)", seconds);
 	log_error("alarm() not implemented.");
 	return 0;
 }
 
-DEFINE_SYSCALL(kill, pid_t, pid, int, sig)
+DEFINE_SYSCALL2(kill, pid_t, pid, int, sig)
 {
 	log_info("kill(%d, %d)", pid, sig);
 	if (pid <= 0)
@@ -618,14 +618,14 @@ DEFINE_SYSCALL(kill, pid_t, pid, int, sig)
 	return 0;
 }
 
-DEFINE_SYSCALL(tgkill, pid_t, tgid, pid_t, pid, int, sig)
+DEFINE_SYSCALL3(tgkill, pid_t, tgid, pid_t, pid, int, sig)
 {
 	log_info("tgkill(%d, %d, %d)", tgid, pid, sig);
 	log_error("tgkill() not implemented.");
 	return 0;
 }
 
-DEFINE_SYSCALL(personality, unsigned long, persona)
+DEFINE_SYSCALL1(personality, unsigned long, persona)
 {
 	log_info("personality(%d)", persona);
 	if (persona != 0 && persona != 0xFFFFFFFFU)
@@ -636,7 +636,7 @@ DEFINE_SYSCALL(personality, unsigned long, persona)
 	return 0;
 }
 
-DEFINE_SYSCALL(sigaction, int, signum, const struct old_sigaction *, act, struct old_sigaction *, oldact)
+DEFINE_SYSCALL3(sigaction, int, signum, const struct old_sigaction *, act, struct old_sigaction *, oldact)
 {
 	log_info("sigaction(%d, %p, %p)", signum, act, oldact);
 	if (signum < 0 || signum >= _NSIG || signum == SIGKILL || signum == SIGSTOP)
@@ -662,7 +662,7 @@ DEFINE_SYSCALL(sigaction, int, signum, const struct old_sigaction *, act, struct
 	return 0;
 }
 
-DEFINE_SYSCALL(rt_sigaction, int, signum, const struct sigaction *, act, struct sigaction *, oldact, size_t, sigsetsize)
+DEFINE_SYSCALL4(rt_sigaction, int, signum, const struct sigaction *, act, struct sigaction *, oldact, size_t, sigsetsize)
 {
 	log_info("rt_sigaction(%d, %p, %p)", signum, act, oldact);
 	if (sigsetsize != sizeof(sigset_t))
@@ -682,7 +682,7 @@ DEFINE_SYSCALL(rt_sigaction, int, signum, const struct sigaction *, act, struct 
 	return 0;
 }
 
-DEFINE_SYSCALL(rt_sigprocmask, int, how, const sigset_t *, set, sigset_t *, oldset, size_t, sigsetsize)
+DEFINE_SYSCALL4(rt_sigprocmask, int, how, const sigset_t *, set, sigset_t *, oldset, size_t, sigsetsize)
 {
 	log_info("rt_sigprocmask(%d, 0x%p, 0x%p)", how, set, oldset);
 	if (sigsetsize != sizeof(sigset_t))
@@ -718,7 +718,7 @@ DEFINE_SYSCALL(rt_sigprocmask, int, how, const sigset_t *, set, sigset_t *, olds
 	return 0;
 }
 
-DEFINE_SYSCALL(rt_sigsuspend, const sigset_t *, mask)
+DEFINE_SYSCALL1(rt_sigsuspend, const sigset_t *, mask)
 {
 	log_info("rt_sigsuspend(%p)", mask);
 	if (!mm_check_read(mask, sizeof(*mask)))
@@ -736,7 +736,7 @@ DEFINE_SYSCALL(rt_sigsuspend, const sigset_t *, mask)
 	return -L_EINTR;
 }
 
-DEFINE_SYSCALL(sigaltstack, const stack_t *, ss, stack_t *, oss)
+DEFINE_SYSCALL2(sigaltstack, const stack_t *, ss, stack_t *, oss)
 {
 	log_info("sigaltstack(ss=%p, oss=%p)", ss, oss);
 	log_error("sigaltstack() not implemented.");

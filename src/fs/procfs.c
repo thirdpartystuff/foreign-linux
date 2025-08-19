@@ -74,7 +74,7 @@ static int procfs_pid_open(int dir_tag, const char *name, int namelen, int *file
 	strncpy(buf, name, namelen);
 	buf[namelen] = 0;
 	pid_t pid;
-	if (!katou(buf, &pid))
+	if (!katoi(buf, &pid))
 		return -L_ENOENT;
 	if (!process_pid_exist(pid))
 		return -L_ENOENT;
@@ -83,7 +83,7 @@ static int procfs_pid_open(int dir_tag, const char *name, int namelen, int *file
 	return 0;
 }
 
-static int sys_vm_min_free_kbytes_get(int tag)
+static unsigned int sys_vm_min_free_kbytes_get(int tag)
 {
 	return 4096;
 }

@@ -29,7 +29,7 @@ void console_init();
 int console_fork(HANDLE process);
 void console_afterfork();
 
-struct virtualfs_custom_desc console_desc;
-size_t console_read(void *buf, size_t count);
-size_t console_write(const void *buf, size_t count);
+extern struct virtualfs_custom_desc console_desc;
+ssize_t console_read(void *buf, size_t count);
+ssize_t console_write(const void *buf, size_t count);
 struct file *console_alloc();
