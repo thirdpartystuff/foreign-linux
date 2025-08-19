@@ -1679,6 +1679,7 @@ DEFINE_SYSCALL(madvise, void *, addr, size_t, length, int, advise)
 
 DEFINE_SYSCALL(brk, void *, addr)
 {
+	void* orig_addr = addr;
 	log_info("brk(%p)", addr);
 	log_info("Last brk: %p", mm->brk);
 	AcquireSRWLockExclusive(&mm->rw_lock);
@@ -1707,5 +1708,5 @@ DEFINE_SYSCALL(brk, void *, addr)
 out:
 	ReleaseSRWLockExclusive(&mm->rw_lock);
 	log_info("New brk: %p", mm->brk);
-	return (intptr_t)mm->brk;
+	return (intptr_t)orig_addr;
 }
