@@ -2,12 +2,13 @@
 setlocal
 cd "%~dp0" || exit /B 1
 
-if exist build\flinux.sln goto skip_cmake
+if exist build\msvc\flinux.sln goto skip_cmake
 
 if not exist build mkdir build
-cd build || exit /B 1
+if not exist build\msvc mkdir build\msvc
+cd build\msvc || exit /B 1
 
-call ..\cmake-3.31.4.cmd ^
+call "%~dp0tools\cmake-3.31.4.cmd" ^
     -A Win32 ^
     "%~dp0" ^
     || exit /B 1
@@ -16,5 +17,5 @@ cd "%~dp0" || exit /B 1
 
 :skip_cmake
 
-start build\flinux.sln
+start build\msvc\flinux.sln
 echo Done
