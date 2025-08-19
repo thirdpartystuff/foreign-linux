@@ -24,6 +24,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <stdio.h>
 #include <stdarg.h>
 
 int logger_attached;
@@ -56,6 +57,7 @@ void log_init_thread()
 {
 	if (!logger_attached)
 		return;
+    #if 0
 	LPCWSTR pipeName = L"\\\\.\\pipe\\flog_server";
 	for (;;)
 	{
@@ -84,24 +86,30 @@ void log_init_thread()
 		}
 		break;
 	}
+    #endif
 }
 
 void log_init()
 {
+    #if 0
 	logger_attached = 1;
 	log_init_thread();
+    #endif
 }
 
 void log_shutdown()
 {
+    #if 0
 	/* TODO */
 	if (logger_attached)
 		CloseHandle(hLoggerPipe);
+    #endif
 }
 
 static void log_internal(int type, char typech, const char *format, va_list ap)
 {
 	struct packet *packet = (struct packet*)buffer;
+    #if 0
 	packet->type = type;
 	FILETIME tf;
 	SYSTEMTIME ts;
@@ -116,7 +124,13 @@ static void log_internal(int type, char typech, const char *format, va_list ap)
 	int hr = (int)((seconds / 3600) % 24);
 	packet->len = ksprintf(packet->text, "[%02u:%02u:%02u.%07u] (%c%c) ",
 		hr, min, sec, nano, typech, typech);
+	#endif
+	packet->len = ksprintf(packet->text, "[%05u] ", (unsigned)GetCurrentProcessId());
 	packet->len += kvsprintf(packet->text + packet->len, format, ap);
+	packet->len += ksprintf(packet->text + packet->len, "\n");
+	fwrite(packet->text, 1, packet->len, stdout);
+	fflush(stdout);
+	/*
 	packet->packet_size = sizeof(struct packet) + packet->len;
 	DWORD bytes_written;
 	if (!WriteFile(hLoggerPipe, buffer, packet->packet_size, &bytes_written, NULL))
@@ -124,6 +138,7 @@ static void log_internal(int type, char typech, const char *format, va_list ap)
 		CloseHandle(hLoggerPipe);
 		logger_attached = 0;
 	}
+	*/
 }
 
 void log_debug_internal(const char *format, ...)

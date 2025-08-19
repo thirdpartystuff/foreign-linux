@@ -83,6 +83,13 @@ void fork_init()
 		log_info("We're a fork child.");
 		fork_child();
 	}
+	else if (!strcmp(GetCommandLineA(), "/?/fork+trace"))
+	{
+		logger_attached = 1;
+		/* We're a fork child */
+		log_info("We're a fork child.");
+		fork_child();
+	}
 	else
 	{
 #ifdef _WIN64
@@ -168,7 +175,7 @@ static pid_t fork_process(struct syscall_context *context, unsigned long flags, 
 	PROCESS_INFORMATION info;
 	STARTUPINFOW si = { 0 };
 	si.cb = sizeof(si);
-	if (!CreateProcessW(filename, L"/?/fork", NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &si, &info))
+	if (!CreateProcessW(filename, (logger_attached ? L"/?/fork+trace" : L"/?/fork"), NULL, NULL, TRUE, CREATE_SUSPENDED, NULL, NULL, &si, &info))
 	{
 		log_warning("fork(): CreateProcessW() failed.");
 		return -1;

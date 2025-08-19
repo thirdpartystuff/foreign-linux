@@ -36,6 +36,7 @@
 #include <ntdll.h>
 #include <shared.h>
 #include <str.h>
+#include <stdio.h>
 
 #include <stdbool.h>
 #define WIN32_LEAN_AND_MEAN
@@ -802,6 +803,7 @@ DEFINE_SYSCALL(getgroups, int, size, gid_t *, list)
 DEFINE_SYSCALL(exit, int, status)
 {
 	log_info("exit(%d)", status);
+	log_shutdown();
 	thread_exit(status, 0);
 }
 

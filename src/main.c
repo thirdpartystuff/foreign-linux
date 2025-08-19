@@ -84,6 +84,7 @@ static void print_help()
 	kprintf("  --version, -v     Print version.\n");
 	kprintf("\n");
 	kprintf("Debug options:\n");
+    kprintf("  --trace           Enable verbose logging.\n");
 	kprintf("  --dbt-trace       Trace dbt basic block generation.\n");
 	kprintf("  --dbt-trace-all   Full trace of dbt execution. (massive performance drop)\n");
 }
@@ -232,6 +233,8 @@ void main()
 			print_version();
 			process_exit(1, 0);
 		}
+		else if (!strcmp(argv[i], "--trace"))
+			logger_attached = 1;
 		else if (!strcmp(argv[i], "--dbt-trace"))
 			cmdline_flags->dbt_trace = true;
 		else if (!strcmp(argv[i], "--dbt-trace-all"))
