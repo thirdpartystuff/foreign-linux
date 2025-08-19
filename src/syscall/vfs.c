@@ -1791,6 +1791,36 @@ DEFINE_SYSCALL2(stat106, const char *, pathname, struct stat_106 *, buf)
     return r;
 }
 
+DEFINE_SYSCALL2(lstat107, const char *, pathname, struct stat_106 *, buf)
+{
+    struct newstat s = {0};
+	log_info("lstat(\"%s\", %p)", pathname, buf);
+	if (!mm_check_read_string(pathname) || !mm_check_write(buf, sizeof(struct newstat)))
+		return -L_EFAULT;
+	int r = vfs_statat(AT_FDCWD, pathname, &s, AT_SYMLINK_NOFOLLOW);
+    buf->st_dev = s.st_dev;
+	buf->__pad1 = 0;
+    buf->st_ino = s.st_ino;
+    buf->st_mode = s.st_mode;
+    buf->st_nlink = s.st_nlink;
+    buf->st_uid = s.st_uid;
+    buf->st_gid = s.st_gid;
+    buf->st_rdev = s.st_rdev;
+	buf->__pad2 = 0;
+    buf->st_size = s.st_size;
+	buf->st_blksize = s.st_blksize;
+	buf->st_blocks = s.st_blocks;
+	buf->st_atime = s.st_atime;
+	buf->__unused1 = 0;
+	buf->st_mtime = s.st_mtime;
+	buf->__unused2 = 0;
+	buf->st_ctime = s.st_ctime;
+	buf->__unused3 = 0;
+	buf->__unused4 = 0;
+	buf->__unused5 = 0;
+    return r;
+}
+
 DEFINE_SYSCALL2(newlstat, const char *, pathname, struct newstat *, buf)
 {
 	log_info("newlstat(\"%s\", %p)", pathname, buf);

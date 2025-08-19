@@ -739,6 +739,12 @@ DEFINE_SYSCALL1(setgid, gid_t, gid)
 	return 0;
 }
 
+DEFINE_SYSCALL1(setgid16, uint16_t, gid)
+{
+	log_info("setgid(%d)", gid);
+	return 0;
+}
+
 DEFINE_SYSCALL0(getgid)
 {
 	log_info("getgid(): %d", 0);
@@ -758,6 +764,12 @@ DEFINE_SYSCALL0(getegid)
 }
 
 DEFINE_SYSCALL1(setuid, uid_t, uid)
+{
+	log_info("setuid(%d)", uid);
+	return 0;
+}
+
+DEFINE_SYSCALL1(setuid16, uint16_t, uid)
 {
 	log_info("setuid(%d)", uid);
 	return 0;

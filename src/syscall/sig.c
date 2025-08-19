@@ -682,6 +682,40 @@ DEFINE_SYSCALL4(rt_sigaction, int, signum, const struct sigaction *, act, struct
 	return 0;
 }
 
+DEFINE_SYSCALL3(sigprocmask, int, how, const old_sigset_t *, set, old_sigset_t *, oldset)
+{
+	log_info("sigprocmask(%d, 0x%p, 0x%p)", how, set, oldset);
+	if (how != SIG_BLOCK && how != SIG_UNBLOCK && how != SIG_SETMASK)
+		return -L_EINVAL;
+	if (set && !mm_check_read(set, sizeof(*set)))
+		return -L_EFAULT;
+	if (oldset && !mm_check_write(oldset, sizeof(*oldset)))
+		return -L_EFAULT;
+	EnterCriticalSection(&signal->mutex);
+	if (oldset)
+		*oldset = current_thread->sigmask;
+	if (set)
+	{
+		switch (how)
+		{
+		case SIG_BLOCK:
+			current_thread->sigmask |= *set;
+			break;
+
+		case SIG_UNBLOCK:
+			current_thread->sigmask &= ~*set;
+			break;
+
+		case SIG_SETMASK:
+			current_thread->sigmask = *set;
+			break;
+		}
+	}
+	send_pending_signal();
+	LeaveCriticalSection(&signal->mutex);
+	return 0;
+}
+
 DEFINE_SYSCALL4(rt_sigprocmask, int, how, const sigset_t *, set, sigset_t *, oldset, size_t, sigsetsize)
 {
 	log_info("rt_sigprocmask(%d, 0x%p, 0x%p)", how, set, oldset);
