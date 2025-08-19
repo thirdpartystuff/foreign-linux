@@ -922,7 +922,7 @@ static int handle_on_demand_page_fault(size_t block)
 	}
 	/* TODO: Mark unmapped pages as PAGE_NOACCESS */
 	if (!found)
-		log_error("Block 0x%p not mapped.", block);
+		log_warning("Block 0x%p not mapped.", block);
 	else
 		log_info("On demand block 0x%p loaded.", block);
 	return found;

@@ -1182,7 +1182,7 @@ int vfs_openat(int dirfd, const char *pathname, int flags, int internal_flags, i
 	}
 	if (mode != 0)
 	{
-		log_error("mode != 0");
+		log_warning("mode != 0");
 		//return -L_EINVAL;
 	}
 	char realpath[PATH_MAX], target[PATH_MAX];
@@ -2333,7 +2333,7 @@ DEFINE_SYSCALL4(fchmodat, int, dirfd, const char *, pathname, int, mode, int, fl
 		return -L_EFAULT;
 	if (flags)
 		log_error("flags not supported.");
-	log_error("fchmodat() not implemented.");
+	log_warning("fchmodat() not implemented.");
 	return 0;
 }
 

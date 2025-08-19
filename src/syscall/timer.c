@@ -190,7 +190,7 @@ DEFINE_SYSCALL1(timer_delete, timer_t, timer_id)
 DEFINE_SYSCALL1(times, struct tms *, tbuf)
 {
 	log_info("times(%p)", tbuf);
-	log_error("times() not implemented.");
+	log_warning("times() not implemented.");
 	tbuf->tms_utime = 0;
 	tbuf->tms_stime = 0;
 	tbuf->tms_cutime = 0;

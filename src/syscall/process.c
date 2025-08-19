@@ -915,7 +915,7 @@ static int do_prlimit64(pid_t pid, int resource, const struct rlimit64 *new_limi
 	}
 	if (new_limit)
 	{
-		log_error("Setting rlimit %d not supported.", resource);
+		log_warning("Setting rlimit %d not supported.", resource);
 		return -L_EINVAL;
 	}
 	return 0;

@@ -31,7 +31,7 @@ extern int logger_attached;
 #define log_debug(format, ...) do { if (logger_attached) log_debug_internal(format, __VA_ARGS__); } while (0)
 #define log_info(format, ...) do { if (logger_attached) log_info_internal(format, __VA_ARGS__); } while (0)
 #define log_warning(format, ...) do { if (logger_attached) log_warning_internal(format, __VA_ARGS__); } while (0)
-#define log_error(format, ...) do { if (logger_attached) log_error_internal(format, __VA_ARGS__); } while (0)
+#define log_error(format, ...) do { /*if (logger_attached)*/ log_error_internal(format, __VA_ARGS__); } while (0)
 
 #ifdef _DEBUG
 
