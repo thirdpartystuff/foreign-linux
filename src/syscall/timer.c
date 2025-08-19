@@ -186,3 +186,14 @@ DEFINE_SYSCALL(timer_delete, timer_t, timer_id)
 	log_error("timer_delete() not implemented.");
 	return 0;
 }
+
+DEFINE_SYSCALL(times, struct tms *, tbuf)
+{
+	log_info("times(%p)", tbuf);
+	log_error("times() not implemented.");
+	tbuf->tms_utime = 0;
+	tbuf->tms_stime = 0;
+	tbuf->tms_cutime = 0;
+	tbuf->tms_cstime = 0;
+	return 0;
+}

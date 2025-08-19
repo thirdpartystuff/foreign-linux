@@ -47,3 +47,12 @@ typedef int timer_t;
 #define MAX_CLOCKS					16
 #define CLOCKS_MASK					(CLOCK_REALTIME | CLOCK_MONOTONIC)
 #define CLOCKS_MONO					CLOCK_MONOTONIC
+
+typedef unsigned int clock_t;
+
+struct tms {
+    clock_t tms_utime;
+    clock_t tms_stime;
+    clock_t tms_cutime;
+    clock_t tms_cstime;
+};
