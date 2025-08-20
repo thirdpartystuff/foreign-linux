@@ -2423,6 +2423,12 @@ DEFINE_SYSCALL3(lchown, const char *, pathname, uid_t, owner, gid_t, group)
 	return sys_fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
 }
 
+DEFINE_SYSCALL3(lchown16, const char *, pathname, uint16_t, owner, uint16_t, group)
+{
+	log_info("lchown(\"%s\", %d, %d)", pathname, owner, group);
+	return sys_fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
+}
+
 static int vfs_ppoll(struct linux_pollfd *fds, int nfds, int timeout, const sigset_t *sigmask)
 {
 	/* Count of handles to be waited on */
