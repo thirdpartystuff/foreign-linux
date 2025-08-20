@@ -1177,7 +1177,7 @@ int vfs_openat(int dirfd, const char *pathname, int flags, int internal_flags, i
 		|| (flags & O_LARGEFILE) || (flags & O_NOATIME) || (flags & O_NOCTTY)
 		|| (flags & O_NONBLOCK) || (flags & __O_SYNC) || (flags & __O_TMPFILE))
 	{
-		log_error("Unsupported flag combination found.");
+		log_warning("Unsupported flag combination found.");
 		//return -L_EINVAL;
 	}
 	if (mode != 0)
@@ -1496,7 +1496,7 @@ DEFINE_SYSCALL3(mkdirat, int, dirfd, const char *, pathname, int, mode)
 {
 	log_info("mkdirat(%d, \"%s\", %d)", dirfd, pathname, mode);
 	if (mode != 0)
-		log_error("mode != 0");
+		log_warning("mode != 0");
 	if (!mm_check_read_string(pathname))
 		return -L_EFAULT;
 	AcquireSRWLockShared(&vfs->rw_lock);
@@ -2094,7 +2094,7 @@ DEFINE_SYSCALL3(ioctl, int, fd, unsigned int, cmd, unsigned long, arg)
 		r = -L_EBADF;
 	else if (!f->op_vtable->ioctl)
 	{
-		log_error("ioctl() not implemented for the file.");
+		log_warning("ioctl() not implemented for the file.");
 		r = -L_EINVAL;
 	}
 	else
@@ -2401,7 +2401,7 @@ DEFINE_SYSCALL5(fchownat, int, dirfd, const char *, pathname, uid_t, owner, gid_
 	log_info("fchownat(%d, \"%s\", %d, %d, %x)", dirfd, pathname, owner, group, flags);
 	if (pathname && !mm_check_read_string(pathname))
 		return -L_EFAULT;
-	log_error("fchownat() not implemented.");
+	log_warning("fchownat() not implemented.");
 	return 0;
 }
 

@@ -598,7 +598,7 @@ int signal_query(DWORD win_pid, HANDLE sigwrite, HANDLE query_mutex, int query_t
 DEFINE_SYSCALL1(alarm, unsigned int, seconds)
 {
 	log_info("alarm(%d)", seconds);
-	log_error("alarm() not implemented.");
+	log_warning("alarm() not implemented.");
 	return 0;
 }
 
