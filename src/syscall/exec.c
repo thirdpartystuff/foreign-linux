@@ -280,6 +280,7 @@ static int load_elf(struct file *f, struct binfmt *binary)
 }
 
 #define MAX_SHEBANG_LINE	256
+static int load_script_ex(struct file *f, struct binfmt *binary, const char* executable);
 static int load_script(struct file *f, struct binfmt *binary)
 {
 	/* Parse the shebang line */
@@ -293,7 +294,6 @@ static int load_script(struct file *f, struct binfmt *binary)
 	if (p == end)
 		return -L_EACCES;
 	const char *executable = p;
-	binary->argv0 = p;
 	while (p < end && *p != ' ' && *p != '\n')
 		p++;
 	if (p == end)
@@ -318,9 +318,14 @@ static int load_script(struct file *f, struct binfmt *binary)
 			*p = 0;
 		}
 	}
-	binary->replace_argv0 = TRUE;
+	return load_script_ex(f, binary, executable);
+}
 
+static int load_script_ex(struct file *f, struct binfmt *binary, const char* executable)
+{
 	struct file *fe;
+	binary->argv0 = executable;
+	binary->replace_argv0 = TRUE;
 	int r = vfs_openat(AT_FDCWD, executable, O_RDONLY, 0, 0, &fe);
 	if (r < 0)
 		return r;
@@ -380,8 +385,13 @@ int do_execve(const char *filename, int argc, char *argv[], int env_size, char *
 	}
 	else
 	{
-		log_error("Unknown binary magic: %c%c%c%c", magic[0], magic[1], magic[2], magic[3]);
-		return -L_EACCES;
+		size_t namelen = strlen(filename);
+		if (namelen > 3 && filename[namelen - 3] == '.' && filename[namelen - 2] == 's' && filename[namelen - 1] == 'h')
+			r = load_script_ex(f, &binary, "/bin/sh");
+		else {
+			log_error("Unknown binary magic: %c%c%c%c", magic[0], magic[1], magic[2], magic[3]);
+			return -L_EACCES;
+		}
 	}
 	vfs_release(f);
 	if (r < 0)
