@@ -52,7 +52,7 @@ struct thread
 	HANDLE wait_event;
 	/*********** Signal related information ***********/
 	/* Signal mask */
-	sigset_t sigmask;
+	new_sigset_t sigmask;
 	/* Signal event: set when a signal is arrived.
 	 * Used in signal_wait() to detect EINTR conditions */
 	HANDLE sigevent;

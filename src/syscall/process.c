@@ -894,7 +894,7 @@ DEFINE_SYSCALL1(sysinfo, struct sysinfo *, info)
 	info->totalhigh = 0;
 	info->freehigh = 0;
 	info->mem_unit = PAGE_SIZE;
-	RtlSecureZeroMemory(info->_f, sizeof(info->_f));
+	/*RtlSecure*/ZeroMemory(info->_f, sizeof(info->_f));
 	return 0;
 }
 

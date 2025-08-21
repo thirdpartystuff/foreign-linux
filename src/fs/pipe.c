@@ -76,7 +76,7 @@ static int pipe_get_poll_status(struct file *f)
 		log_info("Broken pipe.");
 		NtSetEvent(pipe->read_event, NULL);
 		NtSetEvent(pipe->write_event, NULL);
-		return LINUX_POLLIN | LINUX_POLLOUT && LINUX_POLLHUP;
+		return LINUX_POLLIN | LINUX_POLLOUT | LINUX_POLLHUP;
 	}
 	return r;
 }

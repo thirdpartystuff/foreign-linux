@@ -2429,7 +2429,7 @@ DEFINE_SYSCALL3(lchown16, const char *, pathname, uint16_t, owner, uint16_t, gro
 	return sys_fchownat(AT_FDCWD, pathname, owner, group, AT_SYMLINK_NOFOLLOW);
 }
 
-static int vfs_ppoll(struct linux_pollfd *fds, int nfds, int timeout, const sigset_t *sigmask)
+static int vfs_ppoll(struct linux_pollfd *fds, int nfds, int timeout, const new_sigset_t *sigmask)
 {
 	/* Count of handles to be waited on */
 	int cnt = 0;
@@ -2493,7 +2493,7 @@ static int vfs_ppoll(struct linux_pollfd *fds, int nfds, int timeout, const sigs
 	}
 	if (cnt && !done)
 	{
-		sigset_t oldmask;
+		new_sigset_t oldmask;
 		if (sigmask)
 			signal_before_pwait(sigmask, &oldmask);
 		LARGE_INTEGER frequency, start;
@@ -2566,7 +2566,7 @@ out:
 }
 
 static int vfs_pselect6(int nfds, struct fdset *readfds, struct fdset *writefds, struct fdset *exceptfds,
-	int timeout, const sigset_t *sigmask)
+	int timeout, const new_sigset_t *sigmask)
 {
 	int cnt = 0;
 	struct linux_pollfd *fds = (struct linux_pollfd *)alloca(sizeof(struct linux_pollfd) * nfds);
@@ -2619,14 +2619,14 @@ DEFINE_SYSCALL3(poll, struct linux_pollfd *, fds, int, nfds, int, timeout)
 	return vfs_ppoll(fds, nfds, timeout, NULL);
 }
 
-DEFINE_SYSCALL5(ppoll, struct linux_pollfd *, fds, int, nfds, const struct timespec *, timeout_ts, const sigset_t *, sigmask, size_t, sigsetsize)
+DEFINE_SYSCALL5(ppoll, struct linux_pollfd *, fds, int, nfds, const struct timespec *, timeout_ts, const new_sigset_t *, sigmask, size_t, sigsetsize)
 {
 	log_info("ppoll(%p, %d, %p, %p)", fds, nfds, timeout_ts, sigmask);
-	if (sigsetsize != sizeof(sigset_t))
+	if (sigsetsize != sizeof(new_sigset_t))
 		return -L_EINVAL;
 	if (timeout_ts && !mm_check_read(timeout_ts, sizeof(struct timespec)))
 		return -L_EFAULT;
-	if (sigmask && !mm_check_read(sigmask, sizeof(sigset_t)))
+	if (sigmask && !mm_check_read(sigmask, sizeof(new_sigset_t)))
 		return -L_EFAULT;
 	int timeout = timeout_ts == NULL ? -1 : (timeout_ts->tv_sec * 1000 + timeout_ts->tv_nsec / 1000000);
 	return vfs_ppoll(fds, nfds, timeout, sigmask);
@@ -2653,21 +2653,21 @@ DEFINE_SYSCALL6(pselect6, int, nfds, struct fdset *, readfds, struct fdset *, wr
 {
 	struct sigmask_data
 	{
-		const sigset_t *sigmask;
+		const new_sigset_t *sigmask;
 		size_t sigsetlen;
 	} *sd;
 	if (!mm_check_read(sigmask_data, sizeof(sigmask_data)))
 		return -L_EFAULT;
 	sd = (struct sigmask_data *)sigmask_data;
-	if (sd->sigsetlen != sizeof(sigset_t))
+	if (sd->sigsetlen != sizeof(new_sigset_t))
 		return -L_EINVAL;
-	const sigset_t *sigmask = sd->sigmask;
+	const new_sigset_t *sigmask = sd->sigmask;
 	log_info("pselect6(%d, %p, %p, %p, %p, %p)", nfds, readfds, writefds, exceptfds, timeout_ts, sigmask);
 	if ((readfds && !mm_check_write(readfds, sizeof(struct fdset)))
 		|| (writefds && !mm_check_write(writefds, sizeof(struct fdset)))
 		|| (exceptfds && !mm_check_write(exceptfds, sizeof(struct fdset)))
 		|| (timeout_ts && !mm_check_read(timeout_ts, sizeof(struct timespec)))
-		|| (sigmask && !mm_check_read(sigmask, sizeof(sigset_t))))
+		|| (sigmask && !mm_check_read(sigmask, sizeof(new_sigset_t))))
 		return -L_EFAULT;
 	int timeout = timeout_ts == NULL ? -1 : (timeout_ts->tv_sec * 1000 + timeout_ts->tv_nsec / 1000000);
 	return vfs_pselect6(nfds, readfds, writefds, exceptfds, timeout, sigmask);
@@ -2750,12 +2750,12 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL5(epoll_pwait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout, const sigset_t *, sigmask)
+DEFINE_SYSCALL5(epoll_pwait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout, const new_sigset_t *, sigmask)
 {
 	log_info("epoll_pwait(%d, %p, %d, %d, %p)", epfd, events, maxevents, timeout, sigmask);
 	if (!mm_check_write(events, sizeof(struct epoll_event) * maxevents))
 		return -L_EFAULT;
-	if (sigmask && !mm_check_read(sigmask, sizeof(sigset_t)))
+	if (sigmask && !mm_check_read(sigmask, sizeof(new_sigset_t)))
 		return -L_EFAULT;
 	struct file *f = vfs_get(epfd);
 	int r;

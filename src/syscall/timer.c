@@ -66,7 +66,7 @@ DEFINE_SYSCALL2(gettimeofday, struct timeval *, tv, struct timezone *, tz)
 DEFINE_SYSCALL2(nanosleep, const struct timespec *, req, struct timespec *, rem)
 {
 	log_info("nanosleep(0x%p, 0x%p)", req, rem);
-	if (!mm_check_read(req, sizeof(struct timespec)) || rem && !mm_check_write(rem, sizeof(struct timespec)))
+	if (!mm_check_read(req, sizeof(struct timespec)) || (rem && !mm_check_write(rem, sizeof(struct timespec))))
 		return -L_EFAULT;
 	LARGE_INTEGER delay_interval;
 	delay_interval.QuadPart = 0ULL - (((uint64_t)req->tv_sec * 1000000000ULL + req->tv_nsec) / 100ULL);

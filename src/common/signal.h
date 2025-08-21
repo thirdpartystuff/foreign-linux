@@ -6,7 +6,7 @@
 #define _NSIG_WORDS	(_NSIG / sizeof(unsigned long))
 
 typedef uint32_t old_sigset_t;
-typedef uint64_t sigset_t;
+typedef uint64_t new_sigset_t;
 
 #define sigaddset(set, sig)		*(set) |= (1ULL << (sig))
 #define sigdelset(set, sig)		*(set) &= ~(1ULL << (sig))
@@ -105,7 +105,7 @@ struct sigaction
 		void (*sa_handler)(int);
 		void (*sa_sigaction)(int, siginfo_t *, void *);
 	};
-	sigset_t sa_mask;
+	new_sigset_t sa_mask;
 	int sa_flags;
 	void (*sa_restorer)(void);
 };

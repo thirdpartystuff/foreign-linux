@@ -160,5 +160,5 @@ struct ucontext
 	uint32_t uc_link;
 	stack_t uc_stack;
 	struct sigcontext uc_mcontext;
-	sigset_t uc_sigmask;
+	new_sigset_t uc_sigmask;
 };

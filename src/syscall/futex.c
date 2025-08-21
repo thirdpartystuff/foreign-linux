@@ -153,7 +153,7 @@ static int futex_wake_requeue(int *addr, int count, int *requeue_addr, int *requ
 			/* The value changed */
 			unlock_bucket(bucket);
 			unlock_bucket(bucket2);
-			return -EAGAIN;
+			return -L_EAGAIN;
 		}
 	}
 	/* Wake up to count threads */

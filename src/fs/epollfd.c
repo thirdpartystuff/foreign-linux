@@ -136,7 +136,7 @@ void epollfd_to_pollfds(struct file *f, struct linux_pollfd *fds)
 	for (int i = 0; i < epollfd->fd_count; i++)
 	{
 		fds[i].fd = epollfd->fds[i].fd;
-		fds[i].events = epollfd->fds[i].event.events & (POLLIN | POLLOUT | POLLERR);
+		fds[i].events = epollfd->fds[i].event.events & (LINUX_POLLIN | LINUX_POLLOUT | LINUX_POLLERR);
 		fds[i].revents = 0;
 	}
 }

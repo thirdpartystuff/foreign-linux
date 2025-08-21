@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 #define EXTERN_C extern "C"
@@ -8,7 +9,7 @@
 #define EXTERN_C extern
 #endif
 
-typedef intptr_t off_t;
+//typedef intptr_t off_t;
 typedef int64_t loff_t;
 typedef uintptr_t clock_t;
 typedef int pid_t;

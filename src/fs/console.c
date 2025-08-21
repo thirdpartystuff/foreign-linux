@@ -649,7 +649,7 @@ static void write_normal(const char *buf, int size)
 			if (seqlen == console->utf8_buf_size)
 			{
 				uint32_t codepoint = utf8_decode(console->utf8_buf);
-				if (codepoint >= 0 && codepoint <= 0x10FFFF)
+				if (/*codepoint >= 0 &&*/ codepoint <= 0x10FFFF)
 				{
 					/* TODO: Handle non BMP characters (not supported by conhost) */
 					int l = wcwidth(codepoint);

@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.31)
 project(flinux C ASM_MASM)
 
-add_definitions(-D_CRT_SECURE_NO_WARNINGS=1)
+add_definitions(
+    -D_WIN32_WINNT=0x600
+    -D_CRT_SECURE_NO_WARNINGS=1
+    )
 
 if(MSVC)
     add_compile_options(
@@ -19,6 +22,8 @@ else()
         -Wno-writable-strings
         -Wno-microsoft-goto
         -Wno-microsoft-cast
+        -Wno-nonportable-include-path
+        -Wno-macro-redefined
         -Wno-invalid-noreturn
         )
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${flag}")
@@ -182,6 +187,8 @@ target_link_libraries(flinux
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/ntdll.lib"
     ws2_32
     winmm
+    bcrypt
+    psapi
     )
 
 if(MSVC)

@@ -88,7 +88,7 @@ struct file
 {
 	const struct file_ops *op_vtable;
 	int flags;
-	uint32_t ref;
+	LONG ref;
 	SRWLOCK rw_lock;
 };
 

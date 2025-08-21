@@ -24,24 +24,37 @@
 #include <syscall/mm.h>
 #include <log.h>
 
+/*
 #define SystemFunction036 NTAPI SystemFunction036
 #include <NTSecAPI.h>
 #undef SystemFunction036
+*/
+#define WIN32_LEAN_AND_MEAN
+#include "../ntdll.h"
+#include <bcrypt.h>
 
 DEFINE_SYSCALL3(getrandom, void *, buf, size_t, buflen, unsigned int, flags)
 {
 	log_info("getrandom(%p, %d, %x)", buf, buflen, flags);
 	if (!mm_check_write(buf, buflen))
 		return -L_EFAULT;
+    /*
 	if (!RtlGenRandom(buf, buflen))
 		return 0;
+    */
+    if (BCryptGenRandom(NULL, (PUCHAR)buf, buflen, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != STATUS_SUCCESS)
+        return 0;
 	return buflen;
 }
 
 static size_t random_read(int tag, void *buf, size_t count)
 {
+    /*
 	if (!RtlGenRandom(buf, count))
 		return 0;
+    */
+    if (BCryptGenRandom(NULL, (PUCHAR)buf, count, BCRYPT_USE_SYSTEM_PREFERRED_RNG) != STATUS_SUCCESS)
+        return 0;
 	return count;
 }
 

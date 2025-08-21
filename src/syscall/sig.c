@@ -44,7 +44,7 @@ struct signal_data
 	CRITICAL_SECTION mutex;
 
 	struct sigaction actions[_NSIG];
-	sigset_t pending;
+	new_sigset_t pending;
 	siginfo_t pending_info[_NSIG]; /* siginfo which is currently pending */
 };
 
@@ -532,7 +532,7 @@ DWORD signal_wait(int count, HANDLE *handles, DWORD milliseconds)
 		return result;
 }
 
-void signal_before_pwait(const sigset_t *sigmask, sigset_t *oldmask)
+void signal_before_pwait(const new_sigset_t *sigmask, new_sigset_t *oldmask)
 {
 	/* This function is called from ppoll() */
 	/* We reset the signal event object first, any signals received before this
@@ -546,7 +546,7 @@ void signal_before_pwait(const sigset_t *sigmask, sigset_t *oldmask)
 	LeaveCriticalSection(&signal->mutex);
 }
 
-void signal_after_pwait(const sigset_t *oldmask)
+void signal_after_pwait(const new_sigset_t *oldmask)
 {
 	EnterCriticalSection(&signal->mutex);
 	current_thread->sigmask = *oldmask;
@@ -665,7 +665,7 @@ DEFINE_SYSCALL3(sigaction, int, signum, const struct old_sigaction *, act, struc
 DEFINE_SYSCALL4(rt_sigaction, int, signum, const struct sigaction *, act, struct sigaction *, oldact, size_t, sigsetsize)
 {
 	log_info("rt_sigaction(%d, %p, %p)", signum, act, oldact);
-	if (sigsetsize != sizeof(sigset_t))
+	if (sigsetsize != sizeof(new_sigset_t))
 		return -L_EINVAL;
 	if (signum < 0 || signum >= _NSIG || signum == SIGKILL || signum == SIGSTOP)
 		return -L_EINVAL;
@@ -716,10 +716,10 @@ DEFINE_SYSCALL3(sigprocmask, int, how, const old_sigset_t *, set, old_sigset_t *
 	return 0;
 }
 
-DEFINE_SYSCALL4(rt_sigprocmask, int, how, const sigset_t *, set, sigset_t *, oldset, size_t, sigsetsize)
+DEFINE_SYSCALL4(rt_sigprocmask, int, how, const new_sigset_t *, set, new_sigset_t *, oldset, size_t, sigsetsize)
 {
 	log_info("rt_sigprocmask(%d, 0x%p, 0x%p)", how, set, oldset);
-	if (sigsetsize != sizeof(sigset_t))
+	if (sigsetsize != sizeof(new_sigset_t))
 		return -L_EINVAL;
 	if (how != SIG_BLOCK && how != SIG_UNBLOCK && how != SIG_SETMASK)
 		return -L_EINVAL;
@@ -752,12 +752,12 @@ DEFINE_SYSCALL4(rt_sigprocmask, int, how, const sigset_t *, set, sigset_t *, old
 	return 0;
 }
 
-DEFINE_SYSCALL1(rt_sigsuspend, const sigset_t *, mask)
+DEFINE_SYSCALL1(rt_sigsuspend, const new_sigset_t *, mask)
 {
 	log_info("rt_sigsuspend(%p)", mask);
 	if (!mm_check_read(mask, sizeof(*mask)))
 		return -L_EFAULT;
-	sigset_t oldmask;
+	new_sigset_t oldmask;
 	/* TODO: Is this race free? */
 	EnterCriticalSection(&signal->mutex);
 	oldmask = current_thread->sigmask;
@@ -775,7 +775,7 @@ DEFINE_SYSCALL1(sigsuspend, const old_sigset_t *, mask)
 	log_info("sigsuspend(%p)", mask);
 	if (!mm_check_read(mask, sizeof(*mask)))
 		return -L_EFAULT;
-	sigset_t oldmask;
+	new_sigset_t oldmask;
 	/* TODO: Is this race free? */
 	EnterCriticalSection(&signal->mutex);
 	oldmask = current_thread->sigmask;

@@ -22,8 +22,6 @@
 #include <log.h>
 #include <shared.h>
 
-#include <ntdll.h>
-
 #define SHARED_HEAP_POOL_COUNT	1024
 #define SHARED_HEAP_POOL_SIZE	BLOCK_SIZE
 

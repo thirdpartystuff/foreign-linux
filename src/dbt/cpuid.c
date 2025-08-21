@@ -440,6 +440,10 @@ void dbt_cpuid(int eax, int ecx, struct cpuid_t *cpuid)
 	}
 }
 
+#ifndef ARRAYSIZE
+#define ARRAYSIZE(X) (sizeof(X) / sizeof(X[0]))
+#endif
+
 int dbt_get_cpuinfo(char *buf)
 {
 	char *buf_original = buf;

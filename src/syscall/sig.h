@@ -43,8 +43,8 @@ void signal_init_thread(struct thread *thread);
 void signal_exit_thread(struct thread *thread);
 int signal_kill(pid_t pid, siginfo_t *siginfo);
 DWORD signal_wait(int count, HANDLE *handles, DWORD milliseconds);
-void signal_before_pwait(const sigset_t *sigmask, sigset_t *oldmask);
-void signal_after_pwait(const sigset_t *oldmask);
+void signal_before_pwait(const new_sigset_t *sigmask, new_sigset_t *oldmask);
+void signal_after_pwait(const new_sigset_t *oldmask);
 
 /* signal_wait() is interrupted by an incoming signal */
 #define WAIT_INTERRUPTED	0x80000000

@@ -71,7 +71,7 @@ struct virtualfs_entry
 struct virtualfs_directory_desc
 {
 	int type;
-	struct virtualfs_entry entries[];
+	struct virtualfs_entry entries[10];
 };
 
 /* VIRTUALFS_TYPE_CUSTOM */
