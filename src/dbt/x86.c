@@ -31,10 +31,12 @@
 #include <stdint.h>
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <msvcmacro.h>
 #include <ntdll.h>
 #include <immintrin.h>
 
 #ifdef __clang__
+#define __writefsdword my_writefsdword
 static __forceinline void __writefsdword(unsigned long offset, unsigned long value)
 {
     __asm__ __volatile__(
@@ -646,7 +648,7 @@ static void dbt_gen_restore_fork_trampoline()
 	/* xor eax, eax */
 	gen_xor_r_rm_32(&out, EAX, modrm_rm_reg(EAX));
 	/* jmp dbt_find_indirect_internal */
-	gen_jmp(&out, dbt_find_indirect_internal);
+	gen_jmp(&out, (void*)dbt_find_indirect_internal);
 
 	dbt->out = out;
 }
@@ -688,7 +690,7 @@ static void dbt_gen_signal_trampoline()
 	/* Push context argument */
 	gen_push_rm(&out, modrm_rm_reg(ESP));
 	/* Call setup_signal_handler() */
-	gen_call(&out, dbt_setup_signal_handler);
+	gen_call(&out, (void*)dbt_setup_signal_handler);
 	
 	/* lea esp, [esp+4] */
 	gen_lea(&out, ESP, modrm_rm_mreg(ESP, 4));
@@ -709,7 +711,7 @@ static void dbt_gen_signal_trampoline()
 	/* Jump to signal handler */
 	gen_fs_prefix(&out);
 	gen_push_rm(&out, modrm_rm_disp(dbt_global->tls_scratch_offset));
-	gen_jmp(&out, dbt_find_indirect_internal);
+	gen_jmp(&out, (void*)dbt_find_indirect_internal);
 	
 	dbt->out = out;
 }
@@ -738,7 +740,7 @@ static void dbt_gen_sigreturn_trampoline()
 	/* Restore eax */
 	gen_mov_r_rm_32(&out, EAX, modrm_rm_mreg(EAX, offsetof(struct sigcontext, ax)));
 	/* jmp dbt_find_indirect_internal */
-	gen_jmp(&out, dbt_find_indirect_internal);
+	gen_jmp(&out, (void*)dbt_find_indirect_internal);
 
 	dbt->out = out;
 }
@@ -968,7 +970,7 @@ static uint8_t *dbt_gen_sieve(size_t original_pc, uint8_t *target)
 	/* jecxz match (2 bytes) */
 	gen_byte(&out, 0xE3); gen_byte(&out, 0x05);
 	/* jmp dbt_sieve_fallback (5 bytes) */
-	gen_jmp(&out, &dbt_sieve_fallback);
+	gen_jmp(&out, (void*)dbt_sieve_fallback);
 	/* patch offset: 4+6+2+1=13 bytes */
 
 	/* match: */
@@ -1024,7 +1026,7 @@ static uint8_t *dbt_get_direct_trampoline(size_t target, size_t patch_addr)
 	gen_byte(&out, 0x68);
 	gen_dword(&out, target);
 	/* jmp dbt_find_direct_internal (5 bytes) */
-	gen_jmp(&out, &dbt_find_direct_internal);
+	gen_jmp(&out, (void*)dbt_find_direct_internal);
 
 	return dbt->end;
 }
@@ -1228,7 +1230,7 @@ static bool dbt_gen_call_postamble(uint8_t **out, size_t source_pc, struct sysca
 	gen_mov_r_rm_32(out, ECX, modrm_rm_mreg(ESP, 4));
 	gen_lea(out, ECX, modrm_rm_mreg(ECX, -source_pc));
 	gen_jecxz_rel(out, 5);
-	gen_jmp(out, &dbt_sieve_fallback);
+	gen_jmp(out, (void*)dbt_sieve_fallback);
 	if (context && context->eip <= (DWORD)*out)
 	{
 		context->eip = *(DWORD *)(context->esp + 4);
@@ -1300,6 +1302,7 @@ static void dbt_log_opcode(struct instruction_t *ins)
  */
 static struct dbt_block *dbt_translate(size_t pc, struct syscall_context *context)
 {
+    uint8_t handler_type;
 	struct dbt_block *block;
 	if (context)
 	{
@@ -1536,7 +1539,7 @@ done_prefix:
 			+ get_imm_bytes(ins.desc->op2, ins.opsize_prefix, false)
 			+ get_imm_bytes(ins.desc->op3, ins.opsize_prefix, false);
 
-		uint8_t handler_type = ins.desc->handler_type;
+		handler_type = ins.desc->handler_type;
 		if ((handler_type & HANDLER_NORMAL) == HANDLER_NORMAL)
 			handler_type = HANDLER_NORMAL;
 
@@ -1882,7 +1885,7 @@ done_prefix:
 				context->eip = current_ip;
 				goto end_block;
 			}
-			gen_jmp(&out, &syscall_handler);
+			gen_jmp(&out, (void*)syscall_handler);
 			goto end_block;
 		}
 
@@ -1954,7 +1957,7 @@ done_prefix:
 			gen_push_rm(&out, modrm_rm_reg(1));
 			gen_push_rm(&out, modrm_rm_reg(2));
 			gen_push_rm(&out, modrm_rm_reg(temp_reg));
-			gen_call(&out, &tls_user_entry_to_offset);
+			gen_call(&out, (void*)&tls_user_entry_to_offset);
 
 			/* mov temp_reg, fs:eax */
 			gen_fs_prefix(&out);
@@ -1980,7 +1983,7 @@ done_prefix:
 		case HANDLER_CPUID:
 		{
 			/* TODO: Fix context */
-			gen_call(&out, &dbt_cpuid_internal);
+			gen_call(&out, (void*)&dbt_cpuid_internal);
 			break;
 		}
 		}

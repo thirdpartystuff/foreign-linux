@@ -172,6 +172,8 @@ void fork_init()
 */
 static pid_t fork_process(struct syscall_context *context, unsigned long flags, void *ptid, void *ctid)
 {
+    void* stack_base;
+    pid_t pid;
 	wchar_t filename[MAX_PATH];
 	GetModuleFileNameW(NULL, filename, sizeof(filename) / sizeof(filename[0]));
 	
@@ -208,10 +210,10 @@ static pid_t fork_process(struct syscall_context *context, unsigned long flags, 
 	if (!exec_fork(info.hProcess))
 		goto fail;
 
-	pid_t pid = process_init_child(info.dwProcessId, info.dwThreadId, info.hProcess);
+	pid = process_init_child(info.dwProcessId, info.dwThreadId, info.hProcess);
 
 	/* Set up fork_info in child process */
-	void *stack_base = process_get_stack_base();
+	stack_base = process_get_stack_base();
 	NtWriteVirtualMemory(info.hProcess, &fork->context, context, sizeof(struct syscall_context), NULL);
 	NtWriteVirtualMemory(info.hProcess, &fork->stack_base, &stack_base, sizeof(stack_base), NULL);
 	NtWriteVirtualMemory(info.hProcess, &fork->pid, &pid, sizeof(pid_t), NULL);

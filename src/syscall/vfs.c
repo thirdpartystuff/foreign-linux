@@ -461,6 +461,7 @@ int vfs_store_file(struct file *f, int cloexec)
 
 DEFINE_SYSCALL2(pipe2, int *, pipefd, int, flags)
 {
+    int rfd, wfd;
 	/*
 	Supported flags:
 	* O_CLOEXEC
@@ -481,7 +482,7 @@ DEFINE_SYSCALL2(pipe2, int *, pipefd, int, flags)
 	if (r < 0)
 		goto out;
 	/* TODO: Deal with EMFILE error */
-	int rfd = store_file_internal(fread, (flags & O_CLOEXEC) > 0);
+	rfd = store_file_internal(fread, (flags & O_CLOEXEC) > 0);
 	if (rfd < 0)
 	{
 		vfs_release(fread);
@@ -489,7 +490,7 @@ DEFINE_SYSCALL2(pipe2, int *, pipefd, int, flags)
 		r = rfd;
 		goto out;
 	}
-	int wfd = store_file_internal(fwrite, (flags & O_CLOEXEC) > 0);
+	wfd = store_file_internal(fwrite, (flags & O_CLOEXEC) > 0);
 	if (wfd < 0)
 	{
 		vfs_close(rfd);
@@ -1279,6 +1280,7 @@ DEFINE_SYSCALL3(mknod, const char *, pathname, int, mode, unsigned int, dev)
 
 DEFINE_SYSCALL5(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath, int, flags)
 {
+    int symlink_remain;
 	log_info("linkat(%d, \"%s\", %d, \"%x\", %x)", olddirfd, oldpath, newdirfd, newpath, flags);
 	if (!mm_check_read_string(oldpath) || !mm_check_read_string(newpath))
 		return -L_EFAULT;
@@ -1301,7 +1303,7 @@ DEFINE_SYSCALL5(linkat, int, olddirfd, const char *, oldpath, int, newdirfd, con
 		goto out;
 	}
 	char realpath[PATH_MAX];
-	int symlink_remain = MAX_SYMLINK_LEVEL;
+	symlink_remain = MAX_SYMLINK_LEVEL;
 	r = resolve_pathat(newdirfd, newpath, realpath, &symlink_remain);
 	if (r < 0)
 		goto out;
@@ -1439,6 +1441,7 @@ DEFINE_SYSCALL3(readlink, const char *, pathname, char *, buf, int, bufsize)
 
 DEFINE_SYSCALL5(renameat2, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath, unsigned int, flags)
 {
+    int symlink_remain;
 	log_info("renameat2(%d, \"%s\", %d, \"%s\", %x)", olddirfd, oldpath, newdirfd, newpath, flags);
 	if (flags)
 	{
@@ -1458,7 +1461,7 @@ DEFINE_SYSCALL5(renameat2, int, olddirfd, const char *, oldpath, int, newdirfd, 
 		goto out;
 	}
 	char realpath[PATH_MAX];
-	int symlink_remain = MAX_SYMLINK_LEVEL;
+	symlink_remain = MAX_SYMLINK_LEVEL;
 	r = resolve_pathat(newdirfd, newpath, realpath, &symlink_remain);
 	if (r < 0)
 		goto out;
@@ -2125,7 +2128,7 @@ DEFINE_SYSCALL2(utime, const char *, filename, const struct utimbuf *, times)
 			r = f->op_vtable->utimens(f, NULL);
 		else
 		{
-			struct timespec t[2];
+			struct linux_timespec t[2];
 			t[0].tv_sec = times->actime;
 			t[0].tv_nsec = 0;
 			t[1].tv_sec = times->modtime;
@@ -2161,7 +2164,7 @@ DEFINE_SYSCALL2(utimes, const char *, filename, const struct timeval *, times)
 			r = f->op_vtable->utimens(f, NULL);
 		else
 		{
-			struct timespec t[2];
+			struct linux_timespec t[2];
 			unix_timeval_to_unix_timespec(&times[0], &t[0]);
 			unix_timeval_to_unix_timespec(&times[1], &t[1]);
 			r = f->op_vtable->utimens(f, t);
@@ -2173,10 +2176,10 @@ out:
 	return r;
 }
 
-DEFINE_SYSCALL4(utimensat, int, dirfd, const char *, pathname, const struct timespec *, times, int, flags)
+DEFINE_SYSCALL4(utimensat, int, dirfd, const char *, pathname, const struct linux_timespec *, times, int, flags)
 {
 	log_info("utimensat(%d, \"%s\", %p, 0x%x)", dirfd, pathname, times, flags);
-	if ((pathname && !mm_check_read_string(pathname)) || (times && !mm_check_read(times, 2 * sizeof(struct timespec))))
+	if ((pathname && !mm_check_read_string(pathname)) || (times && !mm_check_read(times, 2 * sizeof(struct linux_timespec))))
 		return -L_EFAULT;
 	if (!pathname)
 	{
@@ -2619,12 +2622,12 @@ DEFINE_SYSCALL3(poll, struct linux_pollfd *, fds, int, nfds, int, timeout)
 	return vfs_ppoll(fds, nfds, timeout, NULL);
 }
 
-DEFINE_SYSCALL5(ppoll, struct linux_pollfd *, fds, int, nfds, const struct timespec *, timeout_ts, const new_sigset_t *, sigmask, size_t, sigsetsize)
+DEFINE_SYSCALL5(ppoll, struct linux_pollfd *, fds, int, nfds, const struct linux_timespec *, timeout_ts, const new_sigset_t *, sigmask, size_t, sigsetsize)
 {
 	log_info("ppoll(%p, %d, %p, %p)", fds, nfds, timeout_ts, sigmask);
 	if (sigsetsize != sizeof(new_sigset_t))
 		return -L_EINVAL;
-	if (timeout_ts && !mm_check_read(timeout_ts, sizeof(struct timespec)))
+	if (timeout_ts && !mm_check_read(timeout_ts, sizeof(struct linux_timespec)))
 		return -L_EFAULT;
 	if (sigmask && !mm_check_read(sigmask, sizeof(new_sigset_t)))
 		return -L_EFAULT;
@@ -2649,7 +2652,7 @@ DEFINE_SYSCALL5(select, int, nfds, struct fdset *, readfds, struct fdset *, writ
 }
 
 DEFINE_SYSCALL6(pselect6, int, nfds, struct fdset *, readfds, struct fdset *, writefds, struct fdset *, exceptfds,
-	const struct timespec *, timeout_ts, void *, sigmask_data)
+	const struct linux_timespec *, timeout_ts, void *, sigmask_data)
 {
 	struct sigmask_data
 	{
@@ -2666,7 +2669,7 @@ DEFINE_SYSCALL6(pselect6, int, nfds, struct fdset *, readfds, struct fdset *, wr
 	if ((readfds && !mm_check_write(readfds, sizeof(struct fdset)))
 		|| (writefds && !mm_check_write(writefds, sizeof(struct fdset)))
 		|| (exceptfds && !mm_check_write(exceptfds, sizeof(struct fdset)))
-		|| (timeout_ts && !mm_check_read(timeout_ts, sizeof(struct timespec)))
+		|| (timeout_ts && !mm_check_read(timeout_ts, sizeof(struct linux_timespec)))
 		|| (sigmask && !mm_check_read(sigmask, sizeof(new_sigset_t))))
 		return -L_EFAULT;
 	int timeout = timeout_ts == NULL ? -1 : (timeout_ts->tv_sec * 1000 + timeout_ts->tv_nsec / 1000000);
@@ -2701,6 +2704,7 @@ DEFINE_SYSCALL1(epoll_create, int, size)
 
 DEFINE_SYSCALL4(epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, event)
 {
+    struct file *mf;
 	log_info("epoll_ctl(epfd=%d, op=%d, fd=%d, epoll_event=%p)", epfd, op, fd, event);
 	if (!mm_check_read(event, sizeof(struct epoll_event)))
 		return -L_EINVAL;
@@ -2716,7 +2720,7 @@ DEFINE_SYSCALL4(epoll_ctl, int, epfd, int, op, int, fd, struct epoll_event *, ev
 		r = -L_EBADF;
 		goto out;
 	}
-	struct file *mf = vfs_get(fd);
+	mf = vfs_get(fd);
 	if (!mf)
 	{
 		r = -L_EBADF;
@@ -2752,6 +2756,8 @@ out:
 
 DEFINE_SYSCALL5(epoll_pwait, int, epfd, struct epoll_event *, events, int, maxevents, int, timeout, const new_sigset_t *, sigmask)
 {
+    struct linux_pollfd *pollfds;
+    int nfds;
 	log_info("epoll_pwait(%d, %p, %d, %d, %p)", epfd, events, maxevents, timeout, sigmask);
 	if (!mm_check_write(events, sizeof(struct epoll_event) * maxevents))
 		return -L_EFAULT;
@@ -2764,8 +2770,8 @@ DEFINE_SYSCALL5(epoll_pwait, int, epfd, struct epoll_event *, events, int, maxev
 		r = -L_EBADF;
 		goto out;
 	}
-	int nfds = epollfd_get_nfds(f);
-	struct linux_pollfd *pollfds = (struct linux_pollfd *)alloca(sizeof(struct linux_pollfd) * nfds);
+	nfds = epollfd_get_nfds(f);
+	pollfds = (struct linux_pollfd *)alloca(sizeof(struct linux_pollfd) * nfds);
 	epollfd_to_pollfds(f, pollfds);
 	r = vfs_ppoll(pollfds, nfds, timeout, sigmask);
 	if (r < 0)

@@ -286,6 +286,25 @@ static struct cpuinfo_feature cpuinfo_features_7_0_ebx[] =
 	{ FEATURE_AVX512CD, "avx512cd" },
 };
 
+#ifdef __clang__
+static __forceinline void __cpuidex(int info[4], int function_id, int subfunction_id)
+{
+  unsigned a, b, c, d;
+
+  __asm__ volatile (
+    "cpuid"
+    : "=a"(a), "=b"(b), "=c"(c), "=d"(d)
+    : "0"(function_id), "2"(subfunction_id)
+    : "cc"
+  );
+
+  info[0] = (int)a;
+  info[1] = (int)b;
+  info[2] = (int)c;
+  info[3] = (int)d;
+}
+#endif
+
 void dbt_cpuid(int eax, int ecx, struct cpuid_t *cpuid)
 {
 	int cpuinfo[4];

@@ -57,9 +57,9 @@ struct packet
 
 void log_init_thread()
 {
+    #if 0
 	if (!logger_attached)
 		return;
-    #if 0
 	LPCWSTR pipeName = L"\\\\.\\pipe\\flog_server";
 	for (;;)
 	{

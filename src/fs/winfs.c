@@ -35,6 +35,10 @@
 #include <stdio.h>
 #include <malloc.h>
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
 struct winfs_file
 {
 	struct file base_file;
@@ -805,7 +809,7 @@ static int winfs_stat(struct file *f, struct newstat *buf)
 	return 0;
 }
 
-static int winfs_utimens(struct file *f, const struct timespec *times)
+static int winfs_utimens(struct file *f, const struct linux_timespec *times)
 {
 	AcquireSRWLockShared(&f->rw_lock);
 	struct winfs_file *winfs = (struct winfs_file *)f;
@@ -1114,6 +1118,7 @@ static int winfs_unlink(struct mount_point *mp, const char *pathname)
 
 static int winfs_rename(struct mount_point *mp, struct file *f, const char *newpath)
 {
+    FILE_RENAME_INFORMATION *info;
 	AcquireSRWLockShared(&f->rw_lock);
 	struct winfs_file *winfile = (struct winfs_file *)f;
 	char buf[sizeof(FILE_RENAME_INFORMATION) + PATH_MAX * 2];
@@ -1126,7 +1131,7 @@ retry:
 		r = -L_EPERM;
 		goto out;
 	}
-	FILE_RENAME_INFORMATION *info = (FILE_RENAME_INFORMATION *)buf;
+	info = (FILE_RENAME_INFORMATION *)buf;
 	info->ReplaceIfExists = TRUE;
 	info->RootDirectory = NULL;
 	info->FileNameLength = 2 * filename_to_nt_pathname(mp, newpath, info->FileName, PATH_MAX);

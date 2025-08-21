@@ -63,10 +63,10 @@ DEFINE_SYSCALL2(gettimeofday, struct timeval *, tv, struct timezone *, tz)
 	return 0;
 }
 
-DEFINE_SYSCALL2(nanosleep, const struct timespec *, req, struct timespec *, rem)
+DEFINE_SYSCALL2(nanosleep, const struct linux_timespec *, req, struct linux_timespec *, rem)
 {
 	log_info("nanosleep(0x%p, 0x%p)", req, rem);
-	if (!mm_check_read(req, sizeof(struct timespec)) || (rem && !mm_check_write(rem, sizeof(struct timespec))))
+	if (!mm_check_read(req, sizeof(struct linux_timespec)) || (rem && !mm_check_write(rem, sizeof(struct linux_timespec))))
 		return -L_EFAULT;
 	LARGE_INTEGER delay_interval;
 	delay_interval.QuadPart = 0ULL - (((uint64_t)req->tv_sec * 1000000000ULL + req->tv_nsec) / 100ULL);
@@ -74,10 +74,10 @@ DEFINE_SYSCALL2(nanosleep, const struct timespec *, req, struct timespec *, rem)
 	return 0;
 }
 
-DEFINE_SYSCALL2(clock_gettime, int, clk_id, struct timespec *, tp)
+DEFINE_SYSCALL2(clock_gettime, int, clk_id, struct linux_timespec *, tp)
 {
 	log_info("sys_clock_gettime(%d, 0x%p)", clk_id, tp);
-	if (!mm_check_write(tp, sizeof(struct timespec)))
+	if (!mm_check_write(tp, sizeof(struct linux_timespec)))
 		return -L_EFAULT;
 	switch (clk_id)
 	{
@@ -105,10 +105,10 @@ DEFINE_SYSCALL2(clock_gettime, int, clk_id, struct timespec *, tp)
 	}
 }
 
-DEFINE_SYSCALL2(clock_getres, int, clk_id, struct timespec *, res)
+DEFINE_SYSCALL2(clock_getres, int, clk_id, struct linux_timespec *, res)
 {
 	log_info("clock_getres(%d, 0x%p)", clk_id, res);
-	if (!mm_check_write(res, sizeof(struct timespec)))
+	if (!mm_check_write(res, sizeof(struct linux_timespec)))
 		return -L_EFAULT;
 	switch (clk_id)
 	{

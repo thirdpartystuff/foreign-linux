@@ -28,10 +28,10 @@ void log_warning_internal(const char *format, ...);
 void log_error_internal(const char *format, ...);
 
 extern int logger_attached;
-#define log_debug(format, ...) do { if (logger_attached) log_debug_internal(format, __VA_ARGS__); } while (0)
-#define log_info(format, ...) do { if (logger_attached) log_info_internal(format, __VA_ARGS__); } while (0)
-#define log_warning(format, ...) do { if (logger_attached) log_warning_internal(format, __VA_ARGS__); } while (0)
-#define log_error(format, ...) do { /*if (logger_attached)*/ log_error_internal(format, __VA_ARGS__); } while (0)
+#define log_debug !logger_attached ? (void)0 : log_debug_internal
+#define log_info !logger_attached ? (void)0 : log_info_internal
+#define log_warning !logger_attached ? (void)0 : log_warning_internal
+#define log_error /*!logger_attached ? (void)0 :*/ log_error_internal
 
 #ifdef _DEBUG
 

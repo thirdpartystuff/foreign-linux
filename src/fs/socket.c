@@ -42,7 +42,13 @@
 #include <MSWSock.h>
 #include <WS2tcpip.h>
 
+/*
 #pragma comment(lib, "ws2_32.lib")
+*/
+
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
 
 static void log_unix_socket_addr(const struct sockaddr_un *addr, int addrlen)
 {
@@ -217,12 +223,12 @@ static int socket_update_events_unsafe(struct socket_file *f, int error_report_e
 		e |= FD_ACCEPT;
 	if (events.lNetworkEvents & FD_CLOSE)
 		e |= FD_CLOSE;
-	int original = InterlockedOr(&f->shared->events, e);
+	int original = _InterlockedOr(&f->shared->events, e);
 	if (error_report_events & f->shared->events & FD_CONNECT)
 	{
 		WSASetLastError(f->shared->connect_error);
 		f->shared->connect_error = 0;
-		InterlockedAnd(&f->shared->events, ~FD_CONNECT);
+		_InterlockedAnd(&f->shared->events, ~FD_CONNECT);
 	}
 	return original | e;
 }
@@ -308,7 +314,7 @@ static ssize_t socket_sendto_unsafe(struct socket_file *f, const void *buf, size
 			log_warning("sendto() failed, error code: %d", err);
 			return translate_socket_error(err);
 		}
-		InterlockedAnd(&f->shared->events, ~FD_WRITE);
+		_InterlockedAnd(&f->shared->events, ~FD_WRITE);
 	}
 	return r;
 }
@@ -353,7 +359,7 @@ static int socket_sendmsg_unsafe(struct socket_file *f, const struct msghdr *msg
 			log_warning("WSASendMsg() failed, error code: %d", err);
 			return translate_socket_error(err);
 		}
-		InterlockedAnd(&f->shared->events, ~FD_WRITE);
+		_InterlockedAnd(&f->shared->events, ~FD_WRITE);
 	}
 	return r;
 }
@@ -368,7 +374,7 @@ static ssize_t socket_recvfrom_unsafe(struct socket_file *f, void *buf, size_t l
 	while ((r = socket_wait_event(f, FD_READ | FD_CLOSE, flags)) == 0)
 	{
 		if (!(flags & LINUX_MSG_PEEK))
-			InterlockedAnd(&f->shared->events, ~FD_READ);
+			_InterlockedAnd(&f->shared->events, ~FD_READ);
 		r = recvfrom(f->socket, (char*)buf, len, flags, (struct sockaddr *)&addr_storage, &addr_storage_len);
 		if (r != SOCKET_ERROR)
 			break;
@@ -449,7 +455,7 @@ static ssize_t socket_recvmsg_unsafe(struct socket_file *f, struct msghdr *msg, 
 	{
 		if (WSARecvMsg(f->socket, &wsamsg, &r, NULL, NULL) != SOCKET_ERROR)
 			break;
-		InterlockedAnd(&f->shared->events, ~FD_READ);
+		_InterlockedAnd(&f->shared->events, ~FD_READ);
 		int err = WSAGetLastError();
 		if (err != WSAEWOULDBLOCK)
 		{
@@ -890,7 +896,7 @@ static int socket_accept4(struct file *f, struct sockaddr *addr, int *addrlen, i
 			r = translate_socket_error(err);
 			break;
 		}
-		InterlockedAnd(&socket->shared->events, ~FD_ACCEPT);
+		_InterlockedAnd(&socket->shared->events, ~FD_ACCEPT);
 	}
 	ReleaseMutex(socket->mutex);
 	return r;
@@ -898,6 +904,7 @@ static int socket_accept4(struct file *f, struct sockaddr *addr, int *addrlen, i
 
 static int socket_getsockname(struct file *f, struct sockaddr *addr, int *addrlen)
 {
+    int copylen;
 	struct socket_file *socket = (struct socket_file *)f;
 	WaitForSingleObject(socket->mutex, INFINITE);
 	int r = 0;
@@ -942,7 +949,7 @@ static int socket_getsockname(struct file *f, struct sockaddr *addr, int *addrle
 			goto out;
 		}
 	}
-	int copylen = min(*addrlen, addr_storage_len);
+	copylen = min(*addrlen, addr_storage_len);
 	memcpy(addr, &addr_storage, copylen);
 	*addrlen = addr_storage_len;
 out:
@@ -952,6 +959,7 @@ out:
 
 static int socket_getpeername(struct file *f, struct sockaddr *addr, int *addrlen)
 {
+    int copylen;
 	struct socket_file *socket = (struct socket_file *)f;
 	WaitForSingleObject(socket->mutex, INFINITE);
 	struct sockaddr_storage addr_storage;
@@ -964,7 +972,7 @@ static int socket_getpeername(struct file *f, struct sockaddr *addr, int *addrle
 		goto out;
 	}
 	addr_storage_len = translate_socket_addr_to_linux(&addr_storage, addr_storage_len);
-	int copylen = min(*addrlen, addr_storage_len);
+	copylen = min(*addrlen, addr_storage_len);
 	memcpy(addr, &addr_storage, copylen);
 	*addrlen = addr_storage_len;
 out:

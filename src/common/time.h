@@ -1,6 +1,6 @@
 #pragma once
 
-struct timespec
+struct linux_timespec
 {
 	long tv_sec;
 	long tv_nsec;

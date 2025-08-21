@@ -296,6 +296,7 @@ static bool map_shared_heap_pool(size_t obj_size, int id)
 
 void *kmalloc_shared(size_t obj_size)
 {
+    void *cur, *next;
 	obj_size = ALIGN_TO(obj_size, 8);
 	AcquireSRWLockExclusive(&shared->rw_lock);
 	WaitForSingleObject(shared->shared_heap_mutex, INFINITE);
@@ -343,8 +344,8 @@ void *kmalloc_shared(size_t obj_size)
 		}
 	}
 	/* Pool found and successfully mapped, allocate memory on selected pool */
-	void *cur = shared->shared_heap_mapped_pools[current_pool].addr->first_free;
-	void *next = *(void **)cur;
+	cur = shared->shared_heap_mapped_pools[current_pool].addr->first_free;
+	next = *(void **)cur;
 	shared->shared_heap_mapped_pools[current_pool].addr->first_free = next;
 	shared->shared_heap->pools[current_pool].ref_count--;
 	NtReleaseMutant(shared->shared_heap_mutex, NULL);

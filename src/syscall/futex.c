@@ -27,6 +27,7 @@
 #include <syscall/mm.h>
 #include <lib/list.h>
 #include <log.h>
+#include <emmintrin.h>
 
 #include <ntdll.h>
 
@@ -215,7 +216,7 @@ int futex_requeue(int *addr, int count, int *requeue_addr, int *requeue_val)
 	return futex_wake_requeue(addr, count, requeue_addr, requeue_val);
 }
 
-DEFINE_SYSCALL6(futex, int *, uaddr, int, op, int, val, const struct timespec *, timeout, int *, uaddr2, int, val3)
+DEFINE_SYSCALL6(futex, int *, uaddr, int, op, int, val, const struct linux_timespec *, timeout, int *, uaddr2, int, val3)
 {
 	log_info("futex(%p, %d, %d, %p, %p, %d)", uaddr, op, val, timeout, uaddr2, val3);
 	if (!mm_check_read(uaddr, sizeof(int)))
@@ -224,7 +225,7 @@ DEFINE_SYSCALL6(futex, int *, uaddr, int, op, int, val, const struct timespec *,
 	{
 	case FUTEX_WAIT:
 	{
-		if (timeout && !mm_check_read(timeout, sizeof(struct timespec)))
+		if (timeout && !mm_check_read(timeout, sizeof(struct linux_timespec)))
 			return -L_EFAULT;
 		DWORD time = timeout ? timeout->tv_sec * 1000 + timeout->tv_nsec / 1000000 : INFINITE;
 		return futex_wait((volatile int *)uaddr, val, time);

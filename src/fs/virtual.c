@@ -29,6 +29,10 @@
 
 #include <stdbool.h>
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
 int virtualfs_get_poll_status_inout(struct file *f)
 {
 	return LINUX_POLLIN | LINUX_POLLOUT;

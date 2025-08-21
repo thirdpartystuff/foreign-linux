@@ -52,20 +52,20 @@
  * 0: Regular register size
  * 1: Vector register size
  */
-#define Rxx		0b010'0'0000
-#define SRxx	0b0110'0000
-#define MMMxx	0b1000'0000
-#define XMMMxx	0b1001'0000
-#define Mxx		0b101'0'0000
-#define RM_Rxx	0b110'0'0000
-#define RMxx	0b111'0'0000
+#define Rxx		0b01000000
+#define SRxx	0b01100000
+#define MMMxx	0b10000000
+#define XMMMxx	0b10010000
+#define Mxx		0b10100000
+#define RM_Rxx	0b11000000
+#define RMxx	0b11100000
 
-#define REGULAR		0b0'0000
-#define VECTOR		0b1'0000
+#define REGULAR		0b00000
+#define VECTOR		0b10000
 
-#define FROM_MODRM(op)		(((op) & 0b11'000000) > 0)
-#define FROM_MODRM_R(op)	(((op) & 0b01'000000) > 0)
-#define FROM_MODRM_RM(op)	(((op) & 0b1'0000000) > 0)
+#define FROM_MODRM(op)		(((op) & 0b11000000) > 0)
+#define FROM_MODRM_R(op)	(((op) & 0b01000000) > 0)
+#define FROM_MODRM_RM(op)	(((op) & 0b10000000) > 0)
 
 /* Bit pattern for regular register:
  * 0000: ??8  / al, cl, dl, bl, ...
@@ -169,11 +169,11 @@
  * 110iii: Immediate
  * 111iii: Relative address
  */
-#define IMPLICIT	0b0'00000
-#define MOFFS		0b100'000
-#define NUM			0b101'000
-#define IMMEDIATE	0b110'000
-#define RELADDR		0b111'000
+#define IMPLICIT	0b000000
+#define MOFFS		0b100000
+#define NUM			0b101000
+#define IMMEDIATE	0b110000
+#define RELADDR		0b111000
 
 /* Implicit register / memory (Keep in sync with x86_inst.c) */
 #define AL				(IMPLICIT | 0b00001)

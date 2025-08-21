@@ -19,6 +19,7 @@ else()
     set(CMAKE_ASM_MASM_COMPILE_OPTIONS_MSVC_DEBUG_INFORMATION_FORMAT_Embedded "")
     set(CMAKE_C_FLAGS_DEBUG "")
     foreach(flag
+        -Wno-unknown-warning-option
         -Wno-writable-strings
         -Wno-microsoft-goto
         -Wno-microsoft-cast
@@ -34,7 +35,12 @@ else()
         PROPERTIES COMPILE_OPTIONS
             "-nologo;-coff;-9;-Gd"
         )
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,/SAFESEH:NO -Wl,/DYNAMICBASE:NO")
+    set(CMAKE_C_LINK_EXECUTABLE
+        "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -target i686-w64-mingw32 -rtlib=compiler-rt")
+    get_filename_component(LLVMPATH "${CMAKE_C_COMPILER}" DIRECTORY)
+    get_filename_component(LLVMPATH "${LLVMPATH}" DIRECTORY)
+    set(LIBPATH "${LLVMPATH}/i686-w64-mingw32/lib")
 endif()
 
 include_directories(
@@ -173,7 +179,7 @@ add_executable(flinux
     "src/vsscanf.c"
     "src/wcwidth.c"
     "src/win7compat.c"
-    "src/rc/flinux.rc"
+    #"src/rc/flinux.rc"
     "src/dbt/x86_trampoline.asm"
     "src/syscall/stubs.asm"
     )
@@ -185,19 +191,30 @@ set_directory_properties(
 
 target_link_libraries(flinux
     "${CMAKE_CURRENT_SOURCE_DIR}/lib/ntdll.lib"
-    ws2_32
-    winmm
-    bcrypt
-    psapi
     )
 
 if(MSVC)
     target_link_libraries(flinux
+        ws2_32
+        winmm
+        bcrypt
+        psapi
         debug libcmtd
         optimized libcmt
         )
 else()
+    set_target_properties(flinux PROPERTIES SUFFIX ".exe")
     target_compile_options(flinux PRIVATE
         "$<$<COMPILE_LANGUAGE:C>:-xc++>"
+        "$<$<COMPILE_LANGUAGE:C>:-target>" "$<$<COMPILE_LANGUAGE:C>:i686-w64-mingw32>"
+        "$<$<COMPILE_LANGUAGE:C>:-fms-extensions>"
+        )
+    target_link_libraries(flinux
+        "${LIBPATH}/libgcc.a"
+        "${LIBPATH}/libgcc_s.a"
+        "${LIBPATH}/libwinmm.a"
+        "${LIBPATH}/libbcrypt.a"
+        "${LIBPATH}/libws2_32.a"
+        "${LIBPATH}/libpsapi.a"
         )
 endif()

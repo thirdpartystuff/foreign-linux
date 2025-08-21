@@ -29,6 +29,10 @@
 #include <Windows.h>
 #include <ntdll.h>
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
 /* POSIX.1 says that write(2)s of less than PIPE_BUF bytes must be atomic */
 #define PIPE_BUF	4096
 

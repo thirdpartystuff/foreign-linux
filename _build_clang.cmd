@@ -1,29 +1,30 @@
 @echo off
 setlocal
-set PATH=C:\LLVM\bin;C:\Qt\Tools\mingw810_32\bin;%PATH%
+set PATH=C:\LLVM-4.0.0\bin;C:\Program Files (x86)\Microsoft SDKs\Windows\v7.1A\Bin;%PATH%
 cd "%~dp0" || exit /B 1
 
 if not exist build mkdir build
 if not exist build\clang mkdir build\clang
 cd build\clang || exit /B 1
 
-if not "%FLINUX_CMAKE%"=="" goto know_cmake
-set FLINUX_CMAKE="%~dp0tools\cmake-3.31.4.cmd"
-:know_cmake
-
 if exist flinux.sln goto skip_cmake
 
-call %FLINUX_CMAKE% ^
-    -G "MinGW Makefiles" ^
-    -DCMAKE_BUILD_TYPE=Release ^
-    -DCMAKE_C_COMPILER=clang ^
-    -DCMAKE_ASM_MASM_COMPILER="%~dp0tools\uasm32.exe" ^
-    "%~dp0" ^
-    || exit /B 1
+call "%~dp0tools\pour_wrapper_windows.exe" ^
+    --run cmake-3.31.4 ^
+        -G "MinGW Makefiles" ^
+        -DCMAKE_SYSTEM_NAME=MinGW ^
+        -DCMAKE_BUILD_TYPE=Release ^
+        -DCMAKE_C_COMPILER=clang ^
+        -DCMAKE_C_COMPILER_WORKS=TRUE ^
+        -DCMAKE_C_STANDARD_LIBRARIES="" ^
+        -DCMAKE_ASM_MASM_COMPILER="%~dp0tools\uasm32.exe" ^
+        "%~dp0" ^
+        || exit /B 1
 
 :skip_cmake
 
-call %FLINUX_CMAKE% ^
-    --build . ^
-    || exit /B 1
+call "%~dp0tools\pour_wrapper_windows.exe" ^
+    --run cmake-3.31.4 ^
+        --build . ^
+        || exit /B 1
 echo Done

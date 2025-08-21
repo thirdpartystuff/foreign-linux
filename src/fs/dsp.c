@@ -32,7 +32,13 @@
 #include <mmreg.h>
 #include <mmsystem.h>
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+
+/*
 #pragma comment(lib, "winmm.lib")
+*/
 
 /* Each buffer should be capable of storing about 0.125 second of samples */
 #define DSP_BUFFER_COUNT	16
@@ -132,6 +138,7 @@ static ssize_t dsp_read(struct file *f, void *buf, size_t count)
 
 static ssize_t dsp_write(struct file *f, const void *buf, size_t count)
 {
+    size_t current, written;
 	ssize_t r = 0;
 	AcquireSRWLockExclusive(&f->rw_lock);
 	struct dsp_file *dsp = (struct dsp_file *)f;
@@ -176,7 +183,7 @@ static ssize_t dsp_write(struct file *f, const void *buf, size_t count)
 			}
 		}
 	}
-	size_t written = 0;
+	written = 0;
 	while (count > 0)
 	{
 		if (dsp->buffer[dsp->current_buffer].buffer_pos == dsp->buffer_size)
@@ -184,7 +191,7 @@ static ssize_t dsp_write(struct file *f, const void *buf, size_t count)
 			WaitForSingleObject(dsp->buffer[dsp->current_buffer].event, INFINITE);
 			dsp->buffer[dsp->current_buffer].buffer_pos = 0;
 		}
-		size_t current = min(count, (size_t)(dsp->buffer_size - dsp->buffer[dsp->current_buffer].buffer_pos));
+		current = min(count, (size_t)(dsp->buffer_size - dsp->buffer[dsp->current_buffer].buffer_pos));
 
 		memcpy(dsp->buffer[dsp->current_buffer].hdr.lpData + dsp->buffer[dsp->current_buffer].buffer_pos,
 			(char *)buf + written, current);

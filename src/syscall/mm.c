@@ -35,6 +35,13 @@
 #include <Psapi.h>
 #include <ntdll.h>
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+
 /* Linux mmap() allows mapping into 4kB page boundaries, while Windows only
  * allows 64kB boundaries (called allocation granularity), although both
  * systems use 4kB page size.
@@ -1464,6 +1471,7 @@ DEFINE_SYSCALL2(munmap, void *, addr, size_t, length)
 
 DEFINE_SYSCALL3(mprotect, void *, addr, size_t, length, int, prot)
 {
+    size_t start_page, end_page, last_page;
 	log_info("mprotect(%p, %p, %x)", addr, length, prot);
 	int r = 0;
 	AcquireSRWLockExclusive(&mm->rw_lock);
@@ -1481,9 +1489,9 @@ DEFINE_SYSCALL3(mprotect, void *, addr, size_t, length, int, prot)
 		goto out;
 	}
 	/* Validate all pages are mapped */
-	size_t start_page = GET_PAGE(addr);
-	size_t end_page = GET_PAGE((size_t)addr + length - 1);
-	size_t last_page = start_page - 1;
+	start_page = GET_PAGE(addr);
+	end_page = GET_PAGE((size_t)addr + length - 1);
+	last_page = start_page - 1;
 	for (struct rb_node *cur = start_node(start_page); cur; cur = rb_next(cur))
 	{
 		struct map_entry *e = rb_entry(cur, struct map_entry, tree);

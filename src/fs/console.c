@@ -36,6 +36,13 @@
 #include <ntdll.h>
 #include <malloc.h>
 
+#ifndef min
+#define min(a,b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef max
+#define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
+
 /* xterm like VT terminal emulation on Win32 console
  *
  * Because things like scrolling region information is completely emulated, data

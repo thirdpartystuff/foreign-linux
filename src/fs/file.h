@@ -62,7 +62,7 @@ struct file_ops
 	int (*fsync)(struct file *f);
 	int (*llseek)(struct file *f, loff_t offset, loff_t *newoffset, int whence);
 	int (*stat)(struct file *f, struct newstat *buf);
-	int (*utimens)(struct file *f, const struct timespec *times);
+	int (*utimens)(struct file *f, const struct linux_timespec *times);
 	int (*getdents)(struct file *f, void *dirent, size_t count, getdents_callback *fill_callback);
 	int (*ioctl)(struct file *f, unsigned int cmd, unsigned long arg);
 	int (*statfs)(struct file *f, struct statfs64 *buf);
@@ -81,7 +81,7 @@ struct file_ops
 	ssize_t (*sendmsg)(struct file *f, const struct msghdr *msg, int flags);
 	ssize_t (*recvmsg)(struct file *f, struct msghdr *msg, int flags);
 	int (*sendmmsg)(struct file *f, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags);
-	int (*recvmmsg)(struct file *f, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags, struct timespec *timeout);
+	int (*recvmmsg)(struct file *f, struct mmsghdr *msgvec, unsigned int vlen, unsigned int flags, struct linux_timespec *timeout);
 };
 
 struct file
