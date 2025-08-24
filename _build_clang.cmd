@@ -1,30 +1,24 @@
-@echo off
-setlocal
-set PATH=D:\Work\clang-4.0.0\bin;%PATH%
-cd "%~dp0" || exit /B 1
+@"%~dp0tools\pour_wrapper_windows.exe" --script "%0" && exit /B 0 || exit /B 1
 
-if not exist build mkdir build
-if not exist build\clang mkdir build\clang
-cd build\clang || exit /B 1
+pour.require("clang-4.0.0")
 
-if exist flinux.sln goto skip_cmake
+pour.chdir(SCRIPT_DIR..'/build/clang')
 
-call "%~dp0tools\pour_wrapper_windows.exe" ^
-    --run cmake-3.31.4 ^
-        -G "MinGW Makefiles" ^
-        -DCMAKE_BUILD_TYPE=Release ^
-        -DCMAKE_SYSTEM_NAME=Windows-GNU ^
-        -DCMAKE_C_COMPILER=clang ^
-        -DCMAKE_C_COMPILER_WORKS=TRUE ^
-        -DCMAKE_C_STANDARD_LIBRARIES="" ^
-        -DCMAKE_ASM_MASM_COMPILER="%~dp0tools\uasm32.exe" ^
-        "%~dp0." ^
-        || exit /B 1
+if not pour.file_exists('flinux.exe') then
 
-:skip_cmake
+    pour.run('cmake-3.31.4',
+            '-G', 'MinGW Makefiles',
+            '-DCMAKE_BUILD_TYPE=Release',
+            '-DCMAKE_SYSTEM_NAME=Windows-GNU',
+            '-DCMAKE_C_COMPILER=clang',
+            '-DCMAKE_C_COMPILER_WORKS=TRUE',
+            '-DCMAKE_C_STANDARD_LIBRARIES=',
+            '-DCMAKE_ASM_MASM_COMPILER='..SCRIPT_DIR..'/tools/uasm32.exe',
+            SCRIPT_DIR
+        )
 
-call "%~dp0tools\pour_wrapper_windows.exe" ^
-    --run cmake-3.31.4 ^
-        --build . ^
-        || exit /B 1
-echo Done
+end
+
+pour.run('cmake-3.31.4',
+    '--build', '.'
+    )

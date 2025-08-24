@@ -1,21 +1,14 @@
-@echo off
-setlocal
-cd "%~dp0" || exit /B 1
+@"%~dp0tools\pour_wrapper_windows.exe" --script "%0" && exit /B 0 || exit /B 1
 
-if exist build\msvc\flinux.sln goto skip_cmake
+if not pour.file_exists('build/msvc/flinux.sln') then
 
-if not exist build mkdir build
-if not exist build\msvc mkdir build\msvc
-cd build\msvc || exit /B 1
+    pour.chdir(SCRIPT_DIR..'/build/msvc')
+    pour.run('cmake-3.31.4',
+            '-A', 'Win32',
+            SCRIPT_DIR
+        )
+    pour.chdir(SCRIPT_DIR)
 
-call "%~dp0tools\pour_wrapper_windows.exe" ^
-    --run cmake-3.31.4 ^
-        -A Win32 ^
-        "%~dp0" ^
-        || exit /B 1
+end
 
-cd "%~dp0" || exit /B 1
-
-:skip_cmake
-
-start build\msvc\flinux.sln
+pour.shell_open(SCRIPT_DIR..'/build/msvc/flinux.sln')
