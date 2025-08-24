@@ -264,7 +264,7 @@ int main()
 		int r = do_execve(filename, argc - arg_start, argv + arg_start, env_size, envp, buffer_base, NULL);
 		if (r == -L_ENOENT)
 		{
-			kprintf("Executable not found.");
+			kprintf("Executable not found.\n");
 			process_exit(1, 0);
 		}
 	}
