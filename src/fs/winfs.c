@@ -47,6 +47,7 @@ struct winfs_file
 	int restart_scan; /* for getdents() */
 	int mp_key; /* Mount point key */
 	char drive_letter; /* DOS drive letter where this file resides in */
+    bool is_text;
 };
 
 enum {
@@ -501,6 +502,22 @@ static int winfs_getpath(struct file *f, char *buf)
 	return len;
 }
 
+static void patch_cr(void* buf, DWORD count)
+{
+    char* start = (char*)buf;
+    char* dst = start;
+    while (count-- != 0) {
+        if (*dst == '\r') {
+            if (dst > start && dst[-1] == '\\') {
+                dst[-1] = ' ';
+                *dst = '\\';
+            } else
+                *dst = ' ';
+        }
+        ++dst;
+    }
+}
+
 static ssize_t winfs_read(struct file *f, void *buf, size_t count)
 {
 	AcquireSRWLockShared(&f->rw_lock);
@@ -521,8 +538,11 @@ static ssize_t winfs_read(struct file *f, void *buf, size_t count)
 		}
 		if (num_read_dword == 0)
 			break;
+        if (winfile->is_text)
+            patch_cr(buf, num_read_dword);
 		num_read += num_read_dword;
 		count -= num_read_dword;
+        buf = (char*)buf + num_read_dword;
 	}
 	ReleaseMutex(winfile->fp_mutex);
 	ReleaseSRWLockShared(&f->rw_lock);
@@ -554,6 +574,7 @@ static ssize_t winfs_write(struct file *f, const void *buf, size_t count)
 		}
 		num_written += num_written_dword;
 		count -= num_written_dword;
+        buf = (char*)buf + num_written_dword;
 	}
 	ReleaseMutex(winfile->fp_mutex);
 	ReleaseSRWLockShared(&f->rw_lock);
@@ -608,9 +629,12 @@ static ssize_t winfs_pread(struct file *f, void *buf, size_t count, loff_t offse
 		}
 		if (num_read_dword == 0)
 			break;
+        if (winfile->is_text)
+            patch_cr(buf, num_read_dword);
 		num_read += num_read_dword;
 		offset += num_read_dword;
 		count -= num_read_dword;
+        buf = (char*)buf + num_read_dword;
 	}
 	/* Restore previous file pointer */
 	SetFilePointerEx(winfile->handle, currentFilePointer, &currentFilePointer, FILE_BEGIN);
@@ -648,6 +672,7 @@ static ssize_t winfs_pwrite(struct file *f, const void *buf, size_t count, loff_
 		num_written += num_written_dword;
 		offset += num_written_dword;
 		count -= num_written_dword;
+        buf = (char*)buf + num_written_dword;
 	}
 	/* Restore previous file pointer */
 	SetFilePointerEx(winfile->handle, currentFilePointer, &currentFilePointer, FILE_BEGIN);
@@ -1349,10 +1374,20 @@ static int winfs_open(struct mount_point *mp, const char *pathname, int flags, i
 
 	if (fp)
 	{
+        bool is_text = false;
+        const char* ext = strrchr(pathname, '.');
+        if (ext) {
+            is_text = !strcmp(ext, ".c")
+                   || !strcmp(ext, ".h")
+                   || !strcmp(ext, ".hh")
+                   ;
+        }
+
 		int pathlen = strlen(pathname);
 		struct winfs_file *file = (struct winfs_file *)kmalloc(sizeof(struct winfs_file));
 		file_init(&file->base_file, &winfs_ops, flags);
 		file->handle = handle;
+        file->is_text = is_text;
 		SECURITY_ATTRIBUTES attr;
 		attr.nLength = sizeof(SECURITY_ATTRIBUTES);
 		attr.bInheritHandle = TRUE;
