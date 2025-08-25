@@ -720,7 +720,8 @@ static int winfs_llseek(struct file *f, loff_t offset, loff_t *newoffset, int wh
 	WaitForSingleObject(winfile->fp_mutex, INFINITE);
 	LARGE_INTEGER liDistanceToMove, liNewFilePointer;
 	liDistanceToMove.QuadPart = offset;
-	SetFilePointerEx(winfile->handle, liDistanceToMove, &liNewFilePointer, dwMoveMethod);
+	if (!SetFilePointerEx(winfile->handle, liDistanceToMove, &liNewFilePointer, dwMoveMethod))
+        return -L_EINVAL;
 	*newoffset = liNewFilePointer.QuadPart;
 	if (whence == SEEK_SET && offset == 0)
 	{
