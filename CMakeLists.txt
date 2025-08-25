@@ -35,9 +35,6 @@ else()
         PROPERTIES COMPILE_OPTIONS
             "-nologo;-coff;-9;-Gd"
         )
-    set(CMAKE_C_LINK_EXECUTABLE
-        "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -target i686-w64-mingw32 -rtlib=compiler-rt")
     get_filename_component(LLVMPATH "${CMAKE_C_COMPILER}" DIRECTORY)
     get_filename_component(LLVMPATH "${LLVMPATH}" DIRECTORY)
     set(LIBPATH "${LLVMPATH}/i686-w64-mingw32/lib")
@@ -203,10 +200,8 @@ if(MSVC)
         optimized libcmt
         )
 else()
-    set_target_properties(flinux PROPERTIES SUFFIX ".exe")
     target_compile_options(flinux PRIVATE
         "$<$<COMPILE_LANGUAGE:C>:-xc++>"
-        "$<$<COMPILE_LANGUAGE:C>:-target>" "$<$<COMPILE_LANGUAGE:C>:i686-w64-mingw32>"
         "$<$<COMPILE_LANGUAGE:C>:-fms-extensions>"
         )
     target_link_libraries(flinux
