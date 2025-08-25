@@ -61,7 +61,7 @@
 
 /* Hard limits */
 /* Maximum number of mmap()-ed areas */
-#define MAX_MMAP_COUNT 1024
+#define MAX_MMAP_COUNT 2048 /*1024*/
 
 #ifdef _WIN64
 
