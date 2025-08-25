@@ -1673,7 +1673,7 @@ DEFINE_SYSCALL2(munlock, const void *, addr, size_t, len)
 DEFINE_SYSCALL5(mremap, void *, old_address, size_t, old_size, size_t, new_size, int, flags, void *, new_address)
 {
 	log_info("mremap(old_address=%p, old_size=%p, new_size=%p, flags=%x, new_address=%p)", old_address, old_size, new_size, flags, new_address);
-	log_error("mremap() not implemented.");
+	log_warning("mremap() not implemented.");
 	return -L_ENOSYS;
 }
 
