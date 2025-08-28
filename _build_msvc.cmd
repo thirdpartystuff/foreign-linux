@@ -8,7 +8,6 @@ if not pour.file_exists('flinux.sln') then
             '-A', 'Win32',
             SCRIPT_DIR
         )
-    pour.chdir(SCRIPT_DIR)
 
 end
 
