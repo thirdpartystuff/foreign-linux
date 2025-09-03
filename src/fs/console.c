@@ -84,6 +84,7 @@ struct console_data
 	int cursor_key_mode;
 	int origin_mode;
 	int wraparound_mode;
+    BOOL isRealConsole;
 
 	/* Based on our assumption, these values are not modifiable by other processes
 	 * during a console operation.
@@ -206,7 +207,7 @@ void console_init()
 		log_error("CreateFile(\"CONIN$\") failed, error code: %d", GetLastError());
 		return;
 	}
-	HANDLE out = CreateFileA("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &attr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE); //CreateFileA("CONOUT$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &attr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (out == INVALID_HANDLE_VALUE)
 	{
 		log_error("CreateFile(\"CONOUT$\") failed, error code: %d", GetLastError());
@@ -253,6 +254,9 @@ void console_init()
 	SetConsoleMode(in, ENABLE_PROCESSED_INPUT | ENABLE_WINDOW_INPUT);
 	SetConsoleMode(out, ENABLE_PROCESSED_OUTPUT);
 	SetConsoleCtrlHandler(console_ctrlc_handler, TRUE);
+
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    console->isRealConsole = GetConsoleScreenBufferInfo(console->out, &info);
 
 	log_info("Console shared memory region successfully initialized.");
 }
@@ -432,7 +436,10 @@ static void backspace(BOOL erase)
 		if (erase && console->x)
 		{
 			DWORD bytes_written;
-			WriteConsoleOutputCharacterA(console->out, " ", 1, pos, &bytes_written);
+            if (console->isRealConsole)
+			    WriteConsoleOutputCharacterA(console->out, " ", 1, pos, &bytes_written);
+            else
+                WriteFile(console->out, " ", 1, &bytes_written, NULL);
 		}
 		SetConsoleCursorPosition(console->out, pos);
 	}
@@ -588,7 +595,10 @@ static void scroll_down(int count)
 static void cr()
 {
 	DWORD bytes_written;
-	WriteConsoleA(console->out, "\r", 1, &bytes_written, NULL);
+    if (console->isRealConsole)
+	    WriteConsoleA(console->out, "\r", 1, &bytes_written, NULL);
+    else
+        WriteFile(console->out, "\r", 1, &bytes_written, NULL);
 	console->x = 0;
 	console->at_right_margin = 0;
 }
@@ -598,7 +608,10 @@ static void nl()
 	if (console->scroll_full_screen || console->y < console->scroll_bottom)
 	{
 		DWORD bytes_written;
-		WriteConsoleA(console->out, "\n", 1, &bytes_written, NULL);
+        if (console->isRealConsole)
+		    WriteConsoleA(console->out, "\n", 1, &bytes_written, NULL);
+        else
+            WriteFile(console->out, "\n", 1, &bytes_written, NULL);
 		if (console->y == console->height - 1)
 		{
 			/* The entire screen is scrolled */
@@ -632,6 +645,12 @@ static void write_normal(const char *buf, int size)
 {
 	if (size == 0)
 		return;
+
+    if (!console->isRealConsole) {
+        DWORD bytes_written;
+        WriteFile(console->out, buf, (DWORD)size, &bytes_written, NULL);
+        return;
+    }
 
 	charset_func charset = console->charset == 0? console->g0_charset: console->g1_charset;
 	WCHAR data[1024];
